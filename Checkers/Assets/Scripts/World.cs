@@ -78,7 +78,8 @@ public class World : MonoBehaviour
         team_red = new List<CheckersPiece>();
 
         GenerateGrid();
-        GeneratePieces();
+        GenerateRedPieces();
+        GenerateBlackPieces();
 
         init = true;
     }
@@ -101,21 +102,30 @@ public class World : MonoBehaviour
             }
         }
     }
-    public void GeneratePieces()
+    public void GenerateBlackPieces()
+    {
+        for (int x = 0; x < ROWS; x++)
+        {
+            for (int y = 5; y < COLS; y++)
+            {
+                if (board[x, y] == Team.RED && team_black.Count < MAX_PIECES)
+                {
+                    team_black.Add(new CheckersPiece(Team.BLACK, x, y));
+                    DrawPiece(Team.BLACK, x, y);
+                }
+            }
+        }
+    }
+    public void GenerateRedPieces()
     {
         for (int x = 0; x < ROWS; x++)
         {
             for (int y = 0; y < COLS; y++)
             {
-                if (board[x, y] == Team.RED && team_red.Count < MAX_PIECES)
+                if (board[x, y] == Team.BLACK && team_red.Count < MAX_PIECES)
                 {
                     team_red.Add(new CheckersPiece(Team.RED, x, y));
-                    DrawPiece(board[x, y], y, x);
-                }
-                else if (board[x, y] == Team.BLACK && team_black.Count < MAX_PIECES)
-                {
-                    team_black.Add(new CheckersPiece(Team.BLACK, x, y));
-                    DrawPiece(board[x, y], y, x);
+                    DrawPiece(Team.RED, y, x);
                 }
             }
         }
