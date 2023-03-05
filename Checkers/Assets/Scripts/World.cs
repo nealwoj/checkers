@@ -11,7 +11,7 @@ public enum Level
     DEAD,
     ALIVE
 }
-public enum Team
+public enum Color
 {
     INVALID = -1,
     BLACK,
@@ -20,12 +20,17 @@ public enum Team
 
 public struct CheckersPiece
 {
-    public Team team;
+    public Color col;
     public int x, y;
 
-    public CheckersPiece(Team team, int x, int y)
+    public CheckersPiece(Color col, int x, int y)
     {
-        this.team = team;
+        this.col = col;
+        this.x = x;
+        this.y = y;
+    }
+    public void SetPos(int x, int y)
+    {
         this.x = x;
         this.y = y;
     }
@@ -37,10 +42,11 @@ public class World : MonoBehaviour
     public const int ROWS = 8, COLS = 8;
     public const int MAX_PIECES = 12;
 
-    public Team[,] board;
+    public Color[,] board;
     public List<CheckersPiece> team_red, team_black;
-    public bool init;
-    public float score;
+    public List<GameObject> pieces;
+    public bool init, timer;
+    public float score, timeCount = 0f, delay = 1f;
     public GameObject grid_black, grid_red, piece_red, piece_black;
 
     [HideInInspector]
@@ -63,99 +69,143 @@ public class World : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        //timed game loop that updates moves every delay
+        if (timer)
+        {
+            if (timeCount > delay)
+            {
+                //update
+                Draw();
+
+                timeCount = 0f;
+            }
+            else
+                timeCount += Time.deltaTime;
+        }
     }
 
     #region INIT
     private void Init()
     {
+        //world data
+        board = new Color[ROWS, COLS];
+        team_black = new List<CheckersPiece>();
+        team_red = new List<CheckersPiece>();
+        pieces = new List<GameObject>();
+
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;
         horizontalOffset = verticalOffset * (Screen.width / Screen.height);
-
-        board = new Team[ROWS, COLS];
-        team_black = new List<CheckersPiece>();
-        team_red = new List<CheckersPiece>();
-
         GenerateGrid();
-        GenerateRedPieces();
-        GenerateBlackPieces();
 
         init = true;
     }
     public void GenerateGrid()
     {
+        //generate checkers grid
         for (int x = 0; x < ROWS; x++)
         {
             for (int y = 0; y < COLS; y++)
             {
                 if ((x + y) % 2 == 0)
                 {
-                    DrawGrid(Team.BLACK, x, y);
-                    board[x, y] = Team.BLACK;
+                    DrawGrid(Color.BLACK, x, y);
+                    board[x, y] = Color.BLACK;
                 }
                 else
                 {
-                    DrawGrid(Team.RED, x, y);
-                    board[x, y] = Team.RED;
+                    DrawGrid(Color.RED, x, y);
+                    board[x, y] = Color.RED;
                 }
             }
         }
+
+        //add starting pieces
+        GenerateRedPieces();
+        GenerateBlackPieces();
     }
-    public void GenerateBlackPieces()
+    private void GenerateBlackPieces()
     {
         for (int x = 0; x < ROWS; x++)
         {
             for (int y = 5; y < COLS; y++)
             {
-                if (board[x, y] == Team.RED && team_black.Count < MAX_PIECES)
+                if (board[x, y] == Color.RED && team_black.Count < MAX_PIECES)
                 {
-                    team_black.Add(new CheckersPiece(Team.BLACK, x, y));
-                    DrawPiece(Team.BLACK, x, y);
+                    team_black.Add(new CheckersPiece(Color.BLACK, x, y));
+                    DrawPiece(Color.BLACK, x, y);
                 }
             }
         }
     }
-    public void GenerateRedPieces()
+    private void GenerateRedPieces()
     {
         for (int x = 0; x < ROWS; x++)
         {
             for (int y = 0; y < COLS; y++)
             {
-                if (board[x, y] == Team.BLACK && team_red.Count < MAX_PIECES)
+                if (board[x, y] == Color.BLACK && team_red.Count < MAX_PIECES)
                 {
-                    team_red.Add(new CheckersPiece(Team.RED, x, y));
-                    DrawPiece(Team.RED, y, x);
+                    team_red.Add(new CheckersPiece(Color.RED, x, y));
+                    DrawPiece(Color.RED, y, x);
                 }
             }
         }
     }
     #endregion
 
-    #region Draw Functions
-    public void DrawGrid(Team team, int x, int y)
+    public void Jump(CheckersPiece piece, int x, int y)
     {
-        switch(team)
+        //check jump spots
+
+        //if we can jump over a piece, set newer x and y, remove jumped piece
+
+        //else jump to new pos
+
+        piece.SetPos(x, y);
+    }
+
+    #region Draw Functions
+    public void Draw()
+    {
+        ClearPieces();
+
+        int i;
+        for (i = 0; i < team_black.Count; i++)
+            DrawBlackPiece(team_black[i].x, team_black[i].y);
+        for (i = 0; i < team_red.Count; i++)
+            DrawRedPiece(team_red[i].x, team_red[i].y);
+    }
+    private void ClearPieces()
+    {
+        for (int i = 0; i < pieces.Count; i++)
+            Destroy(pieces[i]);
+
+        pieces.Clear();
+    }
+    public void DrawGrid(Color col, int x, int y)
+    {
+        switch(col)
         {
-            case Team.BLACK:
+            case Color.BLACK:
                 DrawBlackSquare(x,y);
                 break;
-            case Team.RED:
+            case Color.RED:
                 DrawRedSquare(x,y);
                 break;
             default:
-                Debug.Log("Draw Sprite was defaulted");
+                Debug.Log("Drawing Sprite was defaulted");
                 break;
         }
     }
-    public void DrawPiece(Team tm, int x, int y)
+    public void DrawPiece(Color col, int x, int y)
     {
-        switch (tm)
+        switch (col)
         {
-            case Team.BLACK:
+            case Color.BLACK:
                 DrawBlackPiece(x, y);
                 break;
-            case Team.RED:
+            case Color.RED:
                 DrawRedPiece(x, y);
                 break;
             default:
@@ -180,12 +230,14 @@ public class World : MonoBehaviour
         GameObject go = Instantiate(piece_black);
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        pieces.Add(go);
     }
     private void DrawRedPiece(int x, int y)
     {
         GameObject go = Instantiate(piece_red);
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        pieces.Add(go);
     }
     #endregion
 }
