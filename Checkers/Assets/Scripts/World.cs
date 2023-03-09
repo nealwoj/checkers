@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -5,34 +6,52 @@ using Unity.VisualScripting;
 using UnityEngine;
 
 //piece enums
-public enum Level
+public enum Color : byte
 {
-    INVALID = -1,
-    DEAD,
-    ALIVE
-}
-public enum Color
-{
-    INVALID = -1,
-    BLACK,
-    RED
+    BLACK = 0b0001,
+    RED = 0b0000
 }
 
 public struct CheckersPiece
 {
     public Color col;
     public int x, y;
+    public bool level;
 
-    public CheckersPiece(Color col, int x, int y)
+    public CheckersPiece(Color col, int x, int y, bool lvl)
     {
         this.col = col;
         this.x = x;
         this.y = y;
+        level = lvl;
     }
     public void SetPos(int x, int y)
     {
         this.x = x;
         this.y = y;
+    }
+
+    static public CheckersPiece UnPack(byte b)
+    {
+        CheckersPiece piece = new CheckersPiece();
+
+        piece.x = b >> 5;
+        piece.y = (b << 3) >> 5;
+        piece.col = (Color)((b << 6) >> 7);
+        piece.level = (b % 2)==1;
+
+        return piece;
+    }
+    static public byte Pack(CheckersPiece piece)
+    {
+        byte b = 0;
+
+        b = (byte)(piece.x << 5);
+        b |= (byte)(piece.y << 2);
+        b |= (byte)((byte)(piece.col) << 1);
+        b |= (byte)(piece.level ? 1 : 0);
+
+        return b;
     }
 }
 
@@ -41,6 +60,8 @@ public class World : MonoBehaviour
     public static World Instance { get; private set; }
     public const int ROWS = 8, COLS = 8;
     public const int MAX_PIECES = 12;
+    public const float GRID_LAYER = 0f;
+    public const float PIECE_LAYER = -1f;
 
     public Color[,] board;
     public List<CheckersPiece> team_red, team_black;
@@ -132,7 +153,7 @@ public class World : MonoBehaviour
             {
                 if (board[x, y] == Color.RED && team_black.Count < MAX_PIECES)
                 {
-                    team_black.Add(new CheckersPiece(Color.BLACK, x, y));
+                    team_black.Add(new CheckersPiece(Color.BLACK, x, y, 1));
                     DrawPiece(Color.BLACK, x, y);
                 }
             }
@@ -146,7 +167,7 @@ public class World : MonoBehaviour
             {
                 if (board[x, y] == Color.BLACK && team_red.Count < MAX_PIECES)
                 {
-                    team_red.Add(new CheckersPiece(Color.RED, x, y));
+                    team_red.Add(new CheckersPiece(Color.RED, x, y, 1));
                     DrawPiece(Color.RED, y, x);
                 }
             }
@@ -217,26 +238,26 @@ public class World : MonoBehaviour
     {
         GameObject go = Instantiate(grid_black);
         go.transform.SetParent(GameObject.Find("Grid").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
     }
     private void DrawRedSquare(int x, int y)
     {
         GameObject go = Instantiate(grid_red);
         go.transform.SetParent(GameObject.Find("Grid").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
     }
     private void DrawBlackPiece(int x, int y)
     {
         GameObject go = Instantiate(piece_black);
         go.transform.SetParent(GameObject.Find("Pieces").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
         pieces.Add(go);
     }
     private void DrawRedPiece(int x, int y)
     {
         GameObject go = Instantiate(piece_red);
         go.transform.SetParent(GameObject.Find("Pieces").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, 0f);
+        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
         pieces.Add(go);
     }
     #endregion
