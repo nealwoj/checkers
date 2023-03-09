@@ -8,8 +8,21 @@ using UnityEngine;
 //piece enums
 public enum Color : byte
 {
-    BLACK = 0b0001,
+    BLACK = 0b0100,
+    WHITE = 0b0001,
     RED = 0b0000
+}
+public struct GridPiece
+{
+    public Color col;
+    public int x, y;
+
+    public GridPiece(Color col, int x, int y)
+    {
+        this.col = col;
+        this.x = x;
+        this.y = y;
+    }
 }
 
 public struct CheckersPiece
@@ -30,15 +43,49 @@ public struct CheckersPiece
         this.x = x;
         this.y = y;
     }
+}
+
+public class World : MonoBehaviour
+{
+    public static World Instance { get; private set; }
+    public const int ROWS = 8, COLS = 8;
+    public const int MAX_PIECES = 12;
+    public const float GRID_LAYER = 0f;
+    public const float PIECE_LAYER = -1f;
+    public const float GRID_OFFSET = 4.5f;
+
+    public Color[,] board;
+    public List<byte> team_red = new List<byte>(), team_white = new List<byte>();
+    public List<GameObject> pieces = new List<GameObject>(), grid = new List<GameObject>();
+    public bool init;
+    public float score;
+    public GameObject grid_black, grid_red, piece_red, piece_white;
+
+    [HideInInspector]
+    public int verticalOffset, horizontalOffset;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(this);
+    }
 
     static public CheckersPiece UnPack(byte b)
     {
         CheckersPiece piece = new CheckersPiece();
 
+        // x 0b11100000
+        // y 0b00011100
+        // c 0b00000010
+        // l 0b00000001
+        // C# uses implicit conversion without telling us!! Unlike the alpha C++
+
         piece.x = b >> 5;
-        piece.y = (b << 3) >> 5;
-        piece.col = (Color)((b << 6) >> 7);
-        piece.level = (b % 2)==1;
+        piece.y = (b & 0b00011100) >> 2;
+        piece.col = (Color)((b & 0b00000010) >> 1);
+        piece.level = (b % 2) == 1;
 
         return piece;
     }
@@ -53,33 +100,6 @@ public struct CheckersPiece
 
         return b;
     }
-}
-
-public class World : MonoBehaviour
-{
-    public static World Instance { get; private set; }
-    public const int ROWS = 8, COLS = 8;
-    public const int MAX_PIECES = 12;
-    public const float GRID_LAYER = 0f;
-    public const float PIECE_LAYER = -1f;
-
-    public Color[,] board;
-    public List<CheckersPiece> team_red, team_black;
-    public List<GameObject> pieces;
-    public bool init, timer;
-    public float score, timeCount = 0f, delay = 1f;
-    public GameObject grid_black, grid_red, piece_red, piece_black;
-
-    [HideInInspector]
-    public int verticalOffset, horizontalOffset;
-
-    private void Awake()
-    {
-        if (Instance == null)
-            Instance = this;
-        else
-            Destroy(this);
-    }
 
     // Start is called before the first frame update
     void Start()
@@ -90,18 +110,29 @@ public class World : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        //timed game loop that updates moves every delay
-        if (timer)
-        {
-            if (timeCount > delay)
-            {
-                //update
-                Draw();
+        //Draw();
+        //Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        //Debug.Log("Mouse: (" + (pos.x + GRID_OFFSET) + ", " + (pos.y + GRID_OFFSET) + ")");
 
-                timeCount = 0f;
+        //input
+        if (Input.GetMouseButtonDown(0))
+        {
+            Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            int x = (int)pos.x;
+            int y = (int)pos.y;
+
+            SelectGrid(x, y);
+        }
+    }
+
+    public void SelectGrid(int x, int y)
+    {
+        for (int i = 0; i < grid.Count; i++)
+        {
+            if (grid[i].transform.position.x == x && grid[i].transform.position.y == y)
+            {
+                grid[i].gameObject.GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
             }
-            else
-                timeCount += Time.deltaTime;
         }
     }
 
@@ -110,9 +141,6 @@ public class World : MonoBehaviour
     {
         //world data
         board = new Color[ROWS, COLS];
-        team_black = new List<CheckersPiece>();
-        team_red = new List<CheckersPiece>();
-        pieces = new List<GameObject>();
 
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;
@@ -138,23 +166,26 @@ public class World : MonoBehaviour
                     DrawGrid(Color.RED, x, y);
                     board[x, y] = Color.RED;
                 }
+
+                //Debug.Log("(" + x + ", " + y + ")");
             }
         }
 
         //add starting pieces
         GenerateRedPieces();
-        GenerateBlackPieces();
+        GenerateWhitePieces();
     }
-    private void GenerateBlackPieces()
+    private void GenerateWhitePieces()
     {
         for (int x = 0; x < ROWS; x++)
         {
             for (int y = 5; y < COLS; y++)
             {
-                if (board[x, y] == Color.RED && team_black.Count < MAX_PIECES)
+                if (board[x, y] == Color.BLACK && team_white.Count < MAX_PIECES)
                 {
-                    team_black.Add(new CheckersPiece(Color.BLACK, x, y, 1));
-                    DrawPiece(Color.BLACK, x, y);
+                    byte b = Pack(new CheckersPiece(Color.WHITE, x, y, false));
+                    team_white.Add(b);
+                    DrawWhitePiece(x, y);
                 }
             }
         }
@@ -167,24 +198,14 @@ public class World : MonoBehaviour
             {
                 if (board[x, y] == Color.BLACK && team_red.Count < MAX_PIECES)
                 {
-                    team_red.Add(new CheckersPiece(Color.RED, x, y, 1));
-                    DrawPiece(Color.RED, y, x);
+                    byte b = Pack(new CheckersPiece(Color.RED, x, y, false));
+                    team_red.Add(b);
+                    DrawRedPiece(y, x);
                 }
             }
         }
     }
     #endregion
-
-    public void Jump(CheckersPiece piece, int x, int y)
-    {
-        //check jump spots
-
-        //if we can jump over a piece, set newer x and y, remove jumped piece
-
-        //else jump to new pos
-
-        piece.SetPos(x, y);
-    }
 
     #region Draw Functions
     public void Draw()
@@ -192,10 +213,10 @@ public class World : MonoBehaviour
         ClearPieces();
 
         int i;
-        for (i = 0; i < team_black.Count; i++)
-            DrawBlackPiece(team_black[i].x, team_black[i].y);
+        for (i = 0; i < team_white.Count; i++)
+            DrawPiece(team_white[i]);
         for (i = 0; i < team_red.Count; i++)
-            DrawRedPiece(team_red[i].x, team_red[i].y);
+            DrawPiece(team_red[i]);
     }
     private void ClearPieces()
     {
@@ -219,15 +240,16 @@ public class World : MonoBehaviour
                 break;
         }
     }
-    public void DrawPiece(Color col, int x, int y)
+    public void DrawPiece(byte piece)
     {
-        switch (col)
+        CheckersPiece checkersPiece = UnPack(piece);
+        switch (checkersPiece.col)
         {
-            case Color.BLACK:
-                DrawBlackPiece(x, y);
+            case Color.WHITE:
+                DrawWhitePiece(checkersPiece.x, checkersPiece.y);
                 break;
             case Color.RED:
-                DrawRedPiece(x, y);
+                DrawRedPiece(checkersPiece.x, checkersPiece.y);
                 break;
             default:
                 Debug.Log("Drawing piece was defaulted");
@@ -237,27 +259,37 @@ public class World : MonoBehaviour
     private void DrawBlackSquare(int x, int y)
     {
         GameObject go = Instantiate(grid_black);
+
         go.transform.SetParent(GameObject.Find("Grid").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
+
+        grid.Add(go);
     }
     private void DrawRedSquare(int x, int y)
     {
         GameObject go = Instantiate(grid_red);
+
         go.transform.SetParent(GameObject.Find("Grid").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
+
+        grid.Add(go);
     }
-    private void DrawBlackPiece(int x, int y)
+    private void DrawWhitePiece(int x, int y)
     {
-        GameObject go = Instantiate(piece_black);
+        GameObject go = Instantiate(piece_white);
+
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
+
         pieces.Add(go);
     }
     private void DrawRedPiece(int x, int y)
     {
         GameObject go = Instantiate(piece_red);
+
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
+
         pieces.Add(go);
     }
     #endregion
