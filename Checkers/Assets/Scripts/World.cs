@@ -57,8 +57,8 @@ public class World : MonoBehaviour
     //holds information for draw functions like current grid and checkers pieces
     public List<GameObject> objects = new List<GameObject>(), grid = new List<GameObject>();
     
-    public bool init, selected;
-    public float score;
+    public bool init, selected, whiteWin, redWin;
+    public float redScore, whiteScore;
 
     public int pieceIndex, gridIndex;
 
@@ -119,6 +119,9 @@ public class World : MonoBehaviour
         //Debug.Log("Regular: (" + (int)(temp.x) + ", " + (int)(temp.y) + ")");
         //Debug.Log("Offset: (" + (int)(temp.x + GRID_OFFSET) + ", " + (int)(temp.y + GRID_OFFSET) + ")");
 
+        //win/loss
+        CheckWin();
+
         //input
         if (Input.GetMouseButtonDown(0))
         {
@@ -130,6 +133,22 @@ public class World : MonoBehaviour
             //mouse click is on the board
             if (x > -1 && x < 8 && y > -1 && y < 8)
                 Click(x, y);
+        }
+    }
+
+    private void CheckWin()
+    {
+        if (whiteScore >= 12)
+        {
+            ClearGrid();
+            ClearPieces();
+            whiteWin = true;
+        }
+        else if (redScore >= 12)
+        {
+            ClearGrid();
+            ClearPieces();
+            redWin = true;
         }
     }
 
@@ -171,15 +190,42 @@ public class World : MonoBehaviour
     {
         if (FindMoves() != 0 && GetGrid(x, y).GetComponent<SpriteRenderer>().color == UnityEngine.Color.yellow)
         {
+            //change piece x and y
             CheckersPiece piece = UnPack(pieces[pieceIndex]);
             piece.x = x;
             piece.y = y;
 
+            //return piece as packed byte to list
             pieces[pieceIndex] = Pack(piece);
             selected = false;
 
+            //jump case - todo: optimize to avoid if there is no jump
+            CheckJump();
+
             Draw();
             ResetGrid();
+        }
+    }
+    private void CheckJump()
+    {
+        for (int i = 0; i < grid.Count; i++)
+        {
+            if (grid[i].GetComponent<SpriteRenderer>().color == UnityEngine.Color.green)
+            {
+                int index = GetIndex((int)(grid[i].transform.position.x + GRID_OFFSET), (int)(grid[i].transform.position.y + GRID_OFFSET));
+                CheckersPiece piece = UnPack(pieces[index]);
+
+                if (piece.col == Color.RED)
+                {
+                    whiteScore++;
+                }
+                else if (piece.col == Color.WHITE)
+                {
+                    redScore++;
+                }
+
+                pieces.RemoveAt(index);
+            }
         }
     }
     //private void Deselect()
@@ -236,53 +282,129 @@ public class World : MonoBehaviour
     }
     public int FindMoves()
     {
+        if (pieceIndex < 0)
+            return -1;
+
         CheckersPiece piece = UnPack(pieces[pieceIndex]);
-
         int count = 0;
-        int xRIGHT = piece.x + RIGHT, xLEFT = piece.x + LEFT;
-        int yRED = piece.y + RED_FORWARD, yWHITE = piece.y + WHITE_FORWARD;
 
-        Debug.Log("xRIGHT = " + xRIGHT);
+        //forwards
+        int xRIGHT = piece.x + RIGHT;
+        int xLEFT = piece.x + LEFT;
+        int yRED = piece.y + RED_FORWARD;
+        int yWHITE = piece.y + WHITE_FORWARD;
 
+        //jump case
+        int xxRIGHT = xRIGHT + RIGHT;
+        int xxLEFT = xLEFT + LEFT;
+        int yyRED = yRED + RED_FORWARD;
+        int yyWHITE = yWHITE + WHITE_FORWARD;
+
+        //backwards
+
+        //red and white use different directions
         if (piece.col == Color.RED)
         {
             if (xRIGHT > -1 && xRIGHT < 8 && yRED > -1 && yRED < 8)
             {
+                //forward right check
                 if (board[xRIGHT, yRED] == Color.BLACK && Get(xRIGHT, yRED) == false)
                 {
                     GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
                     count++;
                 }
+
+                //jump case
+                if (xxRIGHT > -1 && xxRIGHT < 8 && yyRED > -1 && yyRED < 8)
+                {
+                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false)
+                    {
+                        if (UnPack(pieces[GetIndex(xRIGHT, yRED)]).col == Color.WHITE)
+                        {
+                            GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
+                            GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                            count++;
+                        }
+                    }
+                }
             }
             if (xLEFT > -1 && xLEFT < 8 && yWHITE > -1 && yWHITE < 8)
             {
+                //forward left check
                 if (board[xLEFT, yRED] == Color.BLACK && Get(xLEFT, yRED) == false)
                 {
                     GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
                     count++;
                 }
+
+                //jump case
+                if (xxLEFT > -1 && xxLEFT < 8 && yyRED > -1 && yyRED < 8)
+                {
+                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false)
+                    {
+                        if (UnPack(pieces[GetIndex(xLEFT, yRED)]).col == Color.WHITE)
+                        {
+                            GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
+                            GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                            count++;
+                        }
+                    }
+                }
             }
 
-            //Debug.Log("Source is (" + piece.x + ", " + piece.y + ")");
-            //Debug.Log("Finding at (" + xRIGHT + ", " + yRED + ")");
-            //Debug.Log("Finding at (" + xLEFT + ", " + yRED + ")");
+            //backward promotion check
+            if (piece.level)
+            {
+                
+            }
         }
         else if (piece.col == Color.WHITE)
         {
             if (xRIGHT > -1 && xRIGHT < 8 && yRED > -1 && yRED < 8)
             {
+                //forward right check
                 if (board[xRIGHT, yWHITE] == Color.BLACK && Get(xRIGHT, yWHITE) == false)
                 {
                     GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
                     count++;
                 }
+
+                //jump case
+                if (xxRIGHT > -1 && xxRIGHT < 8 && yyWHITE > -1 && yyWHITE < 8)
+                {
+                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false)
+                    {
+                        if (UnPack(pieces[GetIndex(xRIGHT, yWHITE)]).col == Color.RED)
+                        {
+                            GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
+                            GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                            count++;
+                        }
+                    }
+                }
             }
             if (xLEFT > -1 && xLEFT < 8 && yWHITE > -1 && yWHITE < 8)
             {
+                //forward left check
                 if (board[xLEFT, yWHITE] == Color.BLACK && Get(xLEFT, yWHITE) == false)
                 {
                     GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
                     count++;
+                }
+
+                //jump case
+                if (xxLEFT > -1 && xxLEFT < 8 && yyWHITE > -1 && yyWHITE < 8)
+                {
+                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false)
+                    {
+                        if (UnPack(pieces[GetIndex(xLEFT, yWHITE)]).col == Color.RED)
+                        {
+                            GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
+                            GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                            count++;
+                        }
+                    }
+
                 }
             }
         }
