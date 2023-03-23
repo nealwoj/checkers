@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.SocialPlatforms.Impl;
 
 //piece enums
 public enum Color : byte
@@ -40,6 +41,12 @@ public struct CheckersPiece
     }
 }
 
+public struct MoveData
+{
+    public int x, y;
+    public int heuristic;
+}
+
 public class World : MonoBehaviour
 {
     public static World Instance { get; private set; }
@@ -53,11 +60,12 @@ public class World : MonoBehaviour
     //game data
     public Color[,] board;
     public List<byte> pieces = new List<byte>();
+    public Color turnColor;
 
     //holds information for draw functions like current grid and checkers pieces
     public List<GameObject> objects = new List<GameObject>(), grid = new List<GameObject>();
     
-    public bool init, selected, whiteWin, redWin;
+    public bool init, selected, AIenabled;
     public float redScore, whiteScore;
     public List<byte> jumpPieces = new List<byte>();
     public int pieceIndex, gridIndex;
@@ -141,6 +149,35 @@ public class World : MonoBehaviour
             ClearPieces();
     }
 
+    private int CalculateHeuristic(int index)
+    {
+        int score = 0;
+        CheckersPiece piece = UnPack(pieces[index]);
+
+        if (piece.level)
+            score++;
+
+        int moveCount = FindMoves(index);
+        if (moveCount > 0)
+        {
+            score++;
+
+            if (moveCount > 1)
+                score++;
+
+            //if we can jump once, add score
+            if (jumpPieces.Count > 0)
+            {
+                score++;
+
+                if (jumpPieces.Count > 1)
+                    score++;
+            }
+        }
+
+        return score;
+    }
+
     #region Debug
     private void DisplayPieces()
     {
@@ -164,16 +201,17 @@ public class World : MonoBehaviour
         {
             ClearGrid();
             ClearPieces();
-            whiteWin = true;
+            UIController.Instance.whiteWinUI.SetActive(true);
         }
         else if (redScore >= 12)
         {
             ClearGrid();
             ClearPieces();
-            redWin = true;
+            UIController.Instance.redWinUI.SetActive(true);
         }
     }
 
+    #region Selecting Pieces
     public void Click(int x, int y)
     {
         jumpPieces.Clear();
@@ -181,31 +219,32 @@ public class World : MonoBehaviour
         {
             if ((int)(grid[i].transform.position.x + GRID_OFFSET) == x && (int)(grid[i].transform.position.y + GRID_OFFSET) == y)
             {
+                int index = GetIndex(x, y);
                 //if there is a piece selected, else select piece
                 if (selected)
                 {
                     //if the mouse clicked on another piece, else if the mouse clicked on the selected piece, else move current selected piece
-                    if (Get(x, y) && GetIndex(x, y) != pieceIndex)
-                        Select(x, y, GetIndex(x, y), i);
-                    else if (GetIndex(x, y) == pieceIndex)
+                    if (Get(x, y) && index != pieceIndex)
+                        Select(x, y, index, i);
+                    else if (index == pieceIndex)
                         DeselectPiece();
                     else
                         Move(x, y);
                 }
                 else
-                    Select(x, y, GetIndex(x, y), i);
+                    Select(x, y, index, i);
             }
         }
     }
     private void Select(int x, int y, int pieceIndex, int gridIndex)
     {
-        if (Get(x, y) && board[x, y] == Color.BLACK)
+        if (Get(x, y) && board[x, y] == Color.BLACK && UnPack(pieces[pieceIndex]).col == turnColor)
         {
             ResetGrid();
             this.pieceIndex = pieceIndex;
 
             grid[gridIndex].gameObject.GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
-            FindMoves();
+            FindMoves(this.pieceIndex);
             selected = true;
         }
     }
@@ -214,11 +253,12 @@ public class World : MonoBehaviour
         ResetGrid();
         pieceIndex = -1;
     }
+    #endregion
 
     #region Moving Pieces
     public void Move(int x, int y)
     {
-        if (FindMoves() != 0 && GetGrid(x, y).GetComponent<SpriteRenderer>().color == UnityEngine.Color.yellow)
+        if (FindMoves(pieceIndex) != 0 && GetGrid(x, y).GetComponent<SpriteRenderer>().color == UnityEngine.Color.yellow)
         {
             //change piece x and y
             CheckersPiece piece = UnPack(pieces[pieceIndex]);
@@ -237,8 +277,15 @@ public class World : MonoBehaviour
             //jump case - todo: optimize to avoid if there is no jump
             CheckJump(piece);
 
-            Draw();
+            //change turn
+            if (turnColor == Color.WHITE)
+                turnColor = Color.RED;
+            else if (turnColor == Color.RED)
+                turnColor = Color.WHITE;
+
+            //draw
             ResetGrid();
+            Draw();
         }
     }
     private void CheckJump(CheckersPiece piece)
@@ -338,12 +385,12 @@ public class World : MonoBehaviour
     }
     #endregion
 
-    public int FindMoves()
+    public int FindMoves(int index)
     {
-        if (pieceIndex < 0)
+        if (index < 0)
             return -1;
 
-        CheckersPiece piece = UnPack(pieces[pieceIndex]);
+        CheckersPiece piece = UnPack(pieces[index]);
         int count = 0;
 
         //forwards/backwards
@@ -552,6 +599,8 @@ public class World : MonoBehaviour
     {
         //world data
         board = new Color[ROWS, COLS];
+
+        turnColor = Color.WHITE;
 
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;

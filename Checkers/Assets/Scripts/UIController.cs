@@ -6,7 +6,16 @@ using TMPro;
 
 public class UIController : MonoBehaviour
 {
+    public static UIController Instance { get; private set; }
     public GameObject whiteScoreUI, redScoreUI, whiteWinUI, redWinUI;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+        else
+            Destroy(this);
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -19,10 +28,5 @@ public class UIController : MonoBehaviour
     {
         whiteScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.whiteScore.ToString();
         redScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.redScore.ToString();
-
-        if (World.Instance.redWin)
-            redWinUI.SetActive(true);
-        if (World.Instance.whiteWin)
-            whiteWinUI.SetActive(true);
     }
 }
