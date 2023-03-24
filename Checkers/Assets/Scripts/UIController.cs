@@ -26,7 +26,7 @@ public class UIController : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        whiteScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.whiteScore.ToString();
-        redScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.redScore.ToString();
+        //whiteScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.whiteScore.ToString();
+        //redScoreUI.GetComponent<TextMeshProUGUI>().text = World.Instance.redScore.ToString();
     }
 }
