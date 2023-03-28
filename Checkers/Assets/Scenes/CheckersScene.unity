@@ -1298,15 +1298,21 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   pieces: 
+  jumpPieces: 
   turnColor: 0
+  AIcolor: 0
+  mainGridColor: {r: 0, g: 0, b: 0, a: 1}
+  otherGridColor: {r: 1, g: 1, b: 1, a: 1}
+  teamOneColor: {r: 0, g: 0, b: 0, a: 1}
+  teamTwoColor: {r: 1, g: 0, b: 0, a: 1}
   objects: []
   grid: []
   init: 0
   selected: 0
   AIenabled: 0
+  playerTurn: 0
   redScore: 0
   whiteScore: 0
-  jumpPieces: 
   pieceIndex: 0
   gridIndex: 0
   grid_black: {fileID: 2690860369500935585, guid: 9fa7ec5f9cbfeb1418ee2b0ce7f908fb, type: 3}

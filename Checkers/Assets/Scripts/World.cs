@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.SocialPlatforms.Impl;
 
 //piece enums
-public enum Color : byte
+public enum CheckersColor : byte
 {
     BLACK = 0b0100,
     WHITE = 0b0001,
@@ -28,11 +28,11 @@ public enum Color : byte
 
 public struct CheckersPiece
 {
-    public Color col;
+    public CheckersColor col;
     public int x, y;
     public bool level;
 
-    public CheckersPiece(Color col, int x, int y, bool lvl)
+    public CheckersPiece(CheckersColor col, int x, int y, bool lvl)
     {
         this.col = col;
         this.x = x;
@@ -62,10 +62,11 @@ public class World : MonoBehaviour
     public const float GRID_OFFSET = 4.5f;
 
     //game data
-    public Color[,] board;
+    public CheckersColor[,] board;
     public List<byte> pieces = new List<byte>(), jumpPieces = new List<byte>();
     public List<Move> moveList = new List<Move>();
-    public Color turnColor, AIcolor;
+    public CheckersColor turnColor, AIcolor;
+    public Color mainGridColor, otherGridColor, teamOneColor, teamTwoColor;
 
     //holds information for draw functions like current grid and checkers pieces
     public List<GameObject> objects = new List<GameObject>(), grid = new List<GameObject>();
@@ -100,7 +101,7 @@ public class World : MonoBehaviour
 
         piece.x = b >> 5;
         piece.y = (b & 0b00011100) >> 2;
-        piece.col = (Color)((b & 0b00000010) >> 1);
+        piece.col = (CheckersColor)((b & 0b00000010) >> 1);
         piece.level = (b % 2) == 1;
 
         return piece;
@@ -117,7 +118,7 @@ public class World : MonoBehaviour
 
         move.x = b >> 5;
         move.y = (b & 0b00011100) >> 2;
-        //piece.col = (Color)((b & 0b00000010) >> 1);
+        //piece.col = (CheckersColor)((b & 0b00000010) >> 1);
         //piece.level = (b % 2) == 1;
 
         return move;
@@ -284,12 +285,12 @@ public class World : MonoBehaviour
     }
     private void Select(int x, int y, int pieceIndex, int gridIndex)
     {
-        if (Get(x, y) && board[x, y] == Color.BLACK && UnPackPiece(pieces[pieceIndex]).col == turnColor)
+        if (Get(x, y) && board[x, y] == CheckersColor.BLACK && UnPackPiece(pieces[pieceIndex]).col == turnColor)
         {
             ResetGrid();
             this.pieceIndex = pieceIndex;
 
-            grid[gridIndex].gameObject.GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+            grid[gridIndex].gameObject.GetComponent<SpriteRenderer>().color = Color.yellow;
             FindMoves(this.pieceIndex);
             selected = true;
         }
@@ -312,8 +313,8 @@ public class World : MonoBehaviour
             piece.y = y;
 
             //did the piece reach the other side, if so promote it
-            if ((piece.col == Color.RED && piece.y == 7) ||
-            (piece.col == Color.WHITE && piece.y == 0))
+            if ((piece.col == CheckersColor.RED && piece.y == 7) ||
+            (piece.col == CheckersColor.WHITE && piece.y == 0))
                 piece.level = true;
 
             //return piece as packed byte to list
@@ -324,10 +325,10 @@ public class World : MonoBehaviour
             CheckJump(piece);
 
             //change turn
-            if (turnColor == Color.WHITE)
-                turnColor = Color.RED;
-            else if (turnColor == Color.RED)
-                turnColor = Color.WHITE;
+            if (turnColor == CheckersColor.WHITE)
+                turnColor = CheckersColor.RED;
+            else if (turnColor == CheckersColor.RED)
+                turnColor = CheckersColor.WHITE;
 
             //draw
             ResetGrid();
@@ -343,13 +344,13 @@ public class World : MonoBehaviour
             if (IsDiagonal(GetIndex(piece.x, piece.y), GetIndex(jump.x, jump.y)))
             {
                 //scoring
-                if (jump.col == Color.RED)
+                if (jump.col == CheckersColor.RED)
                 {
                     whiteScore++;
                     if (jump.level)
                         whiteScore++;
                 }
-                else if (jump.col == Color.WHITE)
+                else if (jump.col == CheckersColor.WHITE)
                 {
                     redScore++;
                     if (jump.level)
@@ -453,15 +454,15 @@ public class World : MonoBehaviour
         int yyWHITE = yWHITE + WHITE_FORWARD;
 
         //determines which grid pieces should be marked as movable
-        if (piece.col == Color.RED)
+        if (piece.col == CheckersColor.RED)
         {
             //right check
             if (xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND && yRED > LOWER_BOUND && yRED < UPPER_BOUND)
             {
                 //forward right check
-                if (board[xRIGHT, yRED] == Color.BLACK && Get(xRIGHT, yRED) == false)
+                if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
                 {
-                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
@@ -469,10 +470,10 @@ public class World : MonoBehaviour
                 if (xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND && yyRED > LOWER_BOUND && yyRED < UPPER_BOUND)
                 {
                     //forwards right
-                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == Color.WHITE)
+                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
                         count++;
                     }
@@ -482,18 +483,18 @@ public class World : MonoBehaviour
             //backward right check
             if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
             {
-                if (board[xRIGHT, yWHITE] == Color.BLACK && Get(xRIGHT, yWHITE) == false)
+                if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
                 {
-                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
-                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == Color.WHITE)
+                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
                         count++;
                     }
@@ -504,9 +505,9 @@ public class World : MonoBehaviour
             if (xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND && yRED > LOWER_BOUND && yRED < UPPER_BOUND)
             {
                 //forward left check
-                if (board[xLEFT, yRED] == Color.BLACK && Get(xLEFT, yRED) == false)
+                if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
                 {
-                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
@@ -514,10 +515,10 @@ public class World : MonoBehaviour
                 if (xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND && yyRED > LOWER_BOUND && yyRED < UPPER_BOUND)
                 {
                     //forwards left
-                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == Color.WHITE)
+                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
                         count++;
                     }
@@ -527,33 +528,33 @@ public class World : MonoBehaviour
             //backward left check
             if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
             {
-                if (board[xLEFT, yWHITE] == Color.BLACK && Get(xLEFT, yWHITE) == false)
+                if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
                 {
-                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
                 {
-                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == Color.WHITE)
+                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
                         count++;
                     }
                 }
             }
         }
-        else if (piece.col == Color.WHITE)
+        else if (piece.col == CheckersColor.WHITE)
         {
             //forward right check
             if (xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
             {
                 //forward right check
-                if (board[xRIGHT, yWHITE] == Color.BLACK && Get(xRIGHT, yWHITE) == false)
+                if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
                 {
-                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
@@ -561,10 +562,10 @@ public class World : MonoBehaviour
                 if (xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
                 {
                     //forwards right
-                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == Color.RED)
+                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
                         count++;
                     }
@@ -574,18 +575,18 @@ public class World : MonoBehaviour
             //backward right check
             if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
             {
-                if (board[xRIGHT, yRED] == Color.BLACK && Get(xRIGHT, yRED) == false)
+                if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
                 {
-                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
-                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == Color.RED)
+                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
                         count++;
                     }
@@ -596,19 +597,19 @@ public class World : MonoBehaviour
             if (xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
             {
                 //forward left check
-                if (board[xLEFT, yWHITE] == Color.BLACK && Get(xLEFT, yWHITE) == false)
+                if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
                 {
-                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
                 //jump case
                 if (xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
                 {
-                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == Color.RED)
+                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
                         count++;
                     }
@@ -618,19 +619,19 @@ public class World : MonoBehaviour
             //backward left check
             if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
             {
-                if (board[xLEFT, yRED] == Color.BLACK && Get(xLEFT, yRED) == false)
+                if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
                 {
-                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                     count++;
                 }
 
                 //jump case
                 if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
                 {
-                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == Color.RED)
+                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.green;
-                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = UnityEngine.Color.yellow;
+                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
                         jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
                         count++;
                     }
@@ -654,9 +655,9 @@ public class World : MonoBehaviour
     private void Init()
     {
         //world data
-        board = new Color[ROWS, COLS];
+        board = new CheckersColor[ROWS, COLS];
 
-        turnColor = Color.WHITE;
+        turnColor = CheckersColor.WHITE;
 
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;
@@ -674,16 +675,16 @@ public class World : MonoBehaviour
             {
                 if ((x + y) % 2 == 0)
                 {
-                    DrawGrid(Color.BLACK, x, y);
-                    board[x, y] = Color.BLACK;
+                    //set custom color and set the board position to be a valid move tile (pieces can only move on black spots)
+                    DrawGrid(mainGridColor, x, y);
+                    board[x, y] = CheckersColor.BLACK;
                 }
                 else
                 {
-                    DrawGrid(Color.RED, x, y);
-                    board[x, y] = Color.RED;
+                    //set custom color and set the board position to be a invalid move tile
+                    DrawGrid(otherGridColor, x, y);
+                    board[x, y] = CheckersColor.RED;
                 }
-
-                //Debug.Log("(" + x + ", " + y + ")");
             }
         }
 
@@ -698,9 +699,9 @@ public class World : MonoBehaviour
         {
             for (int y = 5; y < COLS; y++)
             {
-                if (board[x, y] == Color.BLACK && count < MAX_PIECES)
+                if (board[x, y] == CheckersColor.BLACK && count < MAX_PIECES)
                 {
-                    byte b = Pack(new CheckersPiece(Color.WHITE, x, y, false));
+                    byte b = Pack(new CheckersPiece(CheckersColor.WHITE, x, y, false));
                     pieces.Add(b);
                     DrawWhitePiece(x, y, false);
                     count++;
@@ -715,9 +716,9 @@ public class World : MonoBehaviour
         {
             for (int y = 0; y < COLS; y++)
             {
-                if (board[x, y] == Color.BLACK && count < MAX_PIECES)
+                if (board[x, y] == CheckersColor.BLACK && count < MAX_PIECES)
                 {
-                    byte b = Pack(new CheckersPiece(Color.RED, y, x, false));
+                    byte b = Pack(new CheckersPiece(CheckersColor.RED, y, x, false));
                     pieces.Add(b);
                     DrawRedPiece(y, x, false);
                     count++;
@@ -758,36 +759,44 @@ public class World : MonoBehaviour
             for (int y = 0; y < COLS; y++)
             {
                 if ((x + y) % 2 == 0)
-                    DrawGrid(Color.BLACK, x, y);
+                    DrawGrid(mainGridColor, x, y);
                 else
-                    DrawGrid(Color.RED, x, y);
+                    DrawGrid(otherGridColor, x, y);
             }
         }
     }
     public void DrawGrid(Color col, int x, int y)
     {
-        switch(col)
-        {
-            case Color.BLACK:
-                DrawBlackSquare(x,y);
-                break;
-            case Color.RED:
-                DrawRedSquare(x,y);
-                break;
-            default:
-                Debug.Log("Drawing Sprite was defaulted");
-                break;
-        }
+        //switch(col)
+        //{
+        //    case Color.BLACK:
+        //        DrawBlackSquare(x,y);
+        //        break;
+        //    case Color.RED:
+        //        DrawRedSquare(x,y);
+        //        break;
+        //    default:
+        //        Debug.Log("Drawing Sprite was defaulted");
+        //        break;
+        //}
+
+        GameObject go = Instantiate(grid_black);
+
+        go.transform.SetParent(GameObject.Find("Grid").transform);
+        go.GetComponent<SpriteRenderer>().color = col;
+        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
+
+        grid.Add(go);
     }
     public void DrawPiece(byte piece)
     {
         CheckersPiece checkersPiece = UnPackPiece(piece);
         switch (checkersPiece.col)
         {
-            case Color.WHITE:
+            case CheckersColor.WHITE:
                 DrawWhitePiece(checkersPiece.x, checkersPiece.y, checkersPiece.level);
                 break;
-            case Color.RED:
+            case CheckersColor.RED:
                 DrawRedPiece(checkersPiece.x, checkersPiece.y, checkersPiece.level);
                 break;
             default:
@@ -795,31 +804,37 @@ public class World : MonoBehaviour
                 break;
         }
     }
-    private void DrawBlackSquare(int x, int y)
-    {
-        GameObject go = Instantiate(grid_black);
+    //private void DrawBlackSquare(int x, int y)
+    //{
+    //    GameObject go = Instantiate(grid_black);
 
-        go.transform.SetParent(GameObject.Find("Grid").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
+    //    go.transform.SetParent(GameObject.Find("Grid").transform);
+    //    go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
 
-        grid.Add(go);
-    }
-    private void DrawRedSquare(int x, int y)
-    {
-        GameObject go = Instantiate(grid_red);
+    //    grid.Add(go);
+    //}
+    //private void DrawRedSquare(int x, int y)
+    //{
+    //    GameObject go = Instantiate(grid_red);
 
-        go.transform.SetParent(GameObject.Find("Grid").transform);
-        go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
+    //    go.transform.SetParent(GameObject.Find("Grid").transform);
+    //    go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
 
-        grid.Add(go);
-    }
+    //    grid.Add(go);
+    //}
     private void DrawWhitePiece(int x, int y, bool king)
     {
         GameObject go;
         if (king)
+        {
             go = Instantiate(piece_kingwhite);
+            go.transform.GetChild(0).GetComponent<SpriteRenderer>().color = teamOneColor;
+        }
         else
+        {
             go = Instantiate(piece_white);
+            go.GetComponent<SpriteRenderer>().color = teamOneColor;
+        }
 
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
@@ -830,9 +845,15 @@ public class World : MonoBehaviour
     {
         GameObject go;
         if (king)
+        {
             go = Instantiate(piece_kingred);
+            go.transform.GetChild(0).GetComponent<SpriteRenderer>().color = teamTwoColor;
+        }
         else
+        {
             go = Instantiate(piece_red);
+            go.GetComponent<SpriteRenderer>().color = teamTwoColor;
+        }
 
         go.transform.SetParent(GameObject.Find("Pieces").transform);
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, PIECE_LAYER);
