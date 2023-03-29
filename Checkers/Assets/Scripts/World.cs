@@ -73,7 +73,7 @@ public class World : MonoBehaviour
     
     public bool init, selected, AIenabled, playerTurn;
     public float redScore, whiteScore;
-    public int pieceIndex, gridIndex;
+    public int pieceIndex, gridIndex, redCount, whiteCount, pieceMoves;
 
     //prefabs
     public GameObject grid_black, grid_red, piece_red, piece_white, piece_debug, piece_kingwhite, piece_kingred;
@@ -154,43 +154,38 @@ public class World : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        //Draw();
-        //Vector3 temp = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        //Debug.Log("Regular: (" + (int)(temp.x) + ", " + (int)(temp.y) + ")");
-        //Debug.Log("Offset: (" + (int)(temp.x + GRID_OFFSET) + ", " + (int)(temp.y + GRID_OFFSET) + ")");
-
-        //win/loss
-        CheckWin();
-
-        //input
-        if (Input.GetMouseButtonDown(0))
+        if (init)
         {
-            Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            int x = (int)(pos.x + GRID_OFFSET);
-            int y = (int)(pos.y + GRID_OFFSET);
-            //Debug.Log("Click at: (" + x + ", " + y + ")");
-
-            //mouse click is on the board
-            if (x > -1 && x < 8 && y > -1 && y < 8)
-                Click(x, y);
-        }
-        //debug
-        if (Input.GetKeyDown(KeyCode.Space))
-            DisplayPieces();
-        if (Input.GetKeyDown(KeyCode.Escape))
-            ClearPieces();
-
-        //if AI is active and not the player's turn
-        if (AIenabled && turnColor == AIcolor)
-        {
-            //fill move list
-            moveList.Clear();
-            
-            for (int i = 0; i < pieces.Count; i++)
+            //input
+            if (Input.GetMouseButtonDown(0))
             {
-                if (UnPackPiece(pieces[i]).col == AIcolor)
+                Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                int x = (int)(pos.x + GRID_OFFSET);
+                int y = (int)(pos.y + GRID_OFFSET);
+                //Debug.Log("Click at: (" + x + ", " + y + ")");
+
+                //mouse click is on the board
+                if (x > LOWER_BOUND && x < UPPER_BOUND && y > LOWER_BOUND && y < UPPER_BOUND)
+                    Click(x, y);
+            }
+            //debug
+            if (Input.GetKeyDown(KeyCode.Space))
+                DisplayPieces();
+            if (Input.GetKeyDown(KeyCode.Escape))
+                ClearPieces();
+
+            //if AI is active and not the player's turn
+            if (AIenabled && turnColor == AIcolor)
+            {
+                //fill move list
+                moveList.Clear();
+
+                for (int i = 0; i < pieces.Count; i++)
                 {
-                    //add possible piece moves to moveList
+                    if (UnPackPiece(pieces[i]).col == AIcolor)
+                    {
+                        //add possible piece moves to moveList
+                    }
                 }
             }
         }
@@ -242,21 +237,44 @@ public class World : MonoBehaviour
     }
     #endregion
 
+    #region Win State
+    private void Win(CheckersColor winColor)
+    {
+        string txt = "Game Over";
+        switch (winColor)
+        {
+            case CheckersColor.RED:
+                txt = "Player 2 Wins!";
+                break;
+            case CheckersColor.WHITE:
+                txt = "Player 1 Wins!";
+                break;
+            default:
+                Debug.Log("Win was defaulted!");
+                break;
+        }
+
+        UIController.Instance.whiteWinUI.SetActive(true);
+        UIController.Instance.whiteWinUI.GetComponent<TextMeshProUGUI>().text = txt;
+        init = false;
+    }
     private void CheckWin()
     {
-        if (whiteScore >= 12)
+        //check if team white has no more pieces, else if team red has no more pieces, else if the current selected piece has zero moves and it is the last piece remaining
+        if (whiteCount <= 0)
+            Win(CheckersColor.WHITE);
+        else if (redCount <= 0)
+            Win(CheckersColor.RED);
+        else if (pieceMoves <= 0 && (whiteCount == 1 || redCount == 1))
         {
-            ClearGrid();
-            ClearPieces();
-            UIController.Instance.whiteWinUI.SetActive(true);
-        }
-        else if (redScore >= 12)
-        {
-            ClearGrid();
-            ClearPieces();
-            UIController.Instance.redWinUI.SetActive(true);
+            CheckersColor col = UnPackPiece(pieces[pieceIndex]).col;
+            if (col == CheckersColor.WHITE)
+                Win(CheckersColor.RED);
+            else if (col == CheckersColor.RED)
+                Win(CheckersColor.WHITE);
         }
     }
+    #endregion
 
     #region Selecting Pieces
     public void Click(int x, int y)
@@ -291,7 +309,8 @@ public class World : MonoBehaviour
             this.pieceIndex = pieceIndex;
 
             grid[gridIndex].gameObject.GetComponent<SpriteRenderer>().color = Color.yellow;
-            FindMoves(this.pieceIndex);
+            pieceMoves = FindMoves(this.pieceIndex);
+
             selected = true;
         }
     }
@@ -346,17 +365,22 @@ public class World : MonoBehaviour
                 //scoring
                 if (jump.col == CheckersColor.RED)
                 {
+                    redCount--;
                     whiteScore++;
+
                     if (jump.level)
                         whiteScore++;
                 }
                 else if (jump.col == CheckersColor.WHITE)
                 {
+                    whiteCount--;
                     redScore++;
+
                     if (jump.level)
                         redScore++;
                 }
 
+                CheckWin();
                 pieces.RemoveAt(GetIndex(jump.x, jump.y));
             }
         }
@@ -663,6 +687,9 @@ public class World : MonoBehaviour
         verticalOffset = (int)Camera.main.orthographicSize;
         horizontalOffset = verticalOffset * (Screen.width / Screen.height);
         GenerateGrid();
+
+        whiteCount = 12;
+        redCount = 12;
 
         init = true;
     }

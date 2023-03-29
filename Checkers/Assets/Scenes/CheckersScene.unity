@@ -1303,7 +1303,7 @@ MonoBehaviour:
   AIcolor: 0
   mainGridColor: {r: 0, g: 0, b: 0, a: 1}
   otherGridColor: {r: 1, g: 1, b: 1, a: 1}
-  teamOneColor: {r: 0, g: 0, b: 0, a: 1}
+  teamOneColor: {r: 0, g: 0, b: 1, a: 1}
   teamTwoColor: {r: 1, g: 0, b: 0, a: 1}
   objects: []
   grid: []
