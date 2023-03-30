@@ -184,10 +184,15 @@ public class World : MonoBehaviour
                 {
                     if (UnPackPiece(pieces[i]).col == AIcolor)
                     {
-                        //add possible piece moves to moveList
+                        //calculate each move heuristic and add to move list
+                        //then sort the moves based off heuristic
+                        //then pick either the first or last position for the move
+                        //finally execute move for AI and change turn
                     }
                 }
             }
+
+            CheckWin();
         }
     }
 
