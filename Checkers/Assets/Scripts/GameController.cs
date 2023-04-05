@@ -1,7 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class GameController : MonoBehaviour
 {
@@ -29,17 +28,5 @@ public class GameController : MonoBehaviour
     void Update()
     {
         
-    }
-
-    //buttons
-    public void LocalButton(string scene)
-    {
-        AIenabled = false;
-        SceneManager.LoadScene(scene);
-    }
-    public void AIButton(string scene)
-    {
-        AIenabled = true;
-        SceneManager.LoadScene(scene);
     }
 }

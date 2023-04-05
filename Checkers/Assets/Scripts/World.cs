@@ -177,10 +177,8 @@ public class World : MonoBehaviour
         }
     }
 
-    private void Restart()
+    public void Restart()
     {
-        //world data
-        board = new CheckersColor[ROWS, COLS];
         turnColor = CheckersColor.RED;
 
         //grid
@@ -196,6 +194,8 @@ public class World : MonoBehaviour
         selected = false;
         pieceIndex = -1;
         pieceMoves = -1;
+
+        init = true;
     }
 
     #region AI
@@ -210,18 +210,16 @@ public class World : MonoBehaviour
     {
         //go through each AI piece and get total number of moves stored in a list of move types
         List<Move> moves = FindAIMoves();
+        if (moves.Count <= 0)
+            return;
 
         //then check each move data (x and y) for a score based on whats in/around the tile, storing that in a list of scores (int)
         List<RankedMove> moveList = CalculateScores(moves);
 
         //then sort that vector based on score (smallest to larget)
-        //for (int i = 0; i < moves.Count; i++)
-        //{
-        //    moves.Sort((move1, move2)=>move1.heuristic.CompareTo(move2.heuristic));
-        //}
-        Debug.Log("before sort - index: " + moveList[0].move.index + " score: " + moveList[0].score);
+        //Debug.Log("before sort - index: " + moveList[0].move.index + " score: " + moveList[0].score);
         moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
-        Debug.Log("after sort - index: " + moveList[moveList.Count - 1].move.index + " score: " + moveList[moveList.Count - 1].score);
+        //Debug.Log("after sort - index: " + moveList[moveList.Count - 1].move.index + " score: " + moveList[moveList.Count - 1].score);
 
         //execute best move for AI after sorting moveList
         MoveAI(moveList[moveList.Count - 1].move);
@@ -242,7 +240,11 @@ public class World : MonoBehaviour
 
         //jump case
         if (move.jumpIndex > -1)
+        {
+            redCount--;
+            whiteScore++;
             pieces.RemoveAt(move.jumpIndex);
+        }
 
         //change turn
         if (turnColor == CheckersColor.WHITE)
@@ -250,8 +252,6 @@ public class World : MonoBehaviour
         else if (turnColor == CheckersColor.RED)
             turnColor = CheckersColor.WHITE;
 
-        //draw
-        ResetGrid();
         Draw();
     }
     private List<RankedMove> CalculateScores(List<Move> moves)
@@ -351,24 +351,31 @@ public class World : MonoBehaviour
                 txt = "Player 2 Wins!";
                 break;
             case CheckersColor.WHITE:
-                txt = "Player 1 Wins!";
+                if (AIenabled)
+                    txt = "Computer WINS!";
+                else
+                    txt = "Player 1 Wins!";
                 break;
             default:
                 Debug.Log("Win was defaulted!");
                 break;
         }
 
-        UIController.Instance.whiteWinUI.SetActive(true);
-        UIController.Instance.whiteWinUI.GetComponent<TextMeshProUGUI>().text = txt;
+        //UI
+        UIController.Instance.winUI.SetActive(true);
+        UIController.Instance.winUI.GetComponent<TextMeshProUGUI>().text = txt;
+        UIController.Instance.playAgainButton.SetActive(true);
+        UIController.Instance.mainMenuButton.SetActive(true);
+        
         init = false;
     }
     private void CheckWin()
     {
         //check if team white has no more pieces, else if team red has no more pieces, else if the current selected piece has zero moves and it is the last piece remaining
         if (whiteCount <= 0)
-            Win(CheckersColor.WHITE);
-        else if (redCount <= 0)
             Win(CheckersColor.RED);
+        else if (redCount <= 0)
+            Win(CheckersColor.WHITE);
         else if (pieceMoves <= 0 && (whiteCount == 1 || redCount == 1))
         {
             CheckersColor col = UnPackPiece(pieces[pieceIndex]).col;
@@ -453,8 +460,6 @@ public class World : MonoBehaviour
             else if (turnColor == CheckersColor.RED)
                 turnColor = CheckersColor.WHITE;
 
-            //draw
-            ResetGrid();
             Draw();
         }
     }
@@ -1017,8 +1022,9 @@ public class World : MonoBehaviour
         redCount = 12;
 
         //activate AI if necessary
-        if (GameController.Instance.AIenabled)
-            ActivateAI();
+        if (GameController.Instance)
+            if (GameController.Instance.AIenabled)
+                ActivateAI();
 
         init = true;
     }
@@ -1091,10 +1097,8 @@ public class World : MonoBehaviour
     #region Draw Functions
     public void Draw()
     {
-        ClearPieces();
-
-        for (int i = 0; i < pieces.Count; i++)
-            DrawPiece(pieces[i]);
+        ResetGrid();
+        ResetPieces();
     }
     private void ClearPieces()
     {
@@ -1110,7 +1114,7 @@ public class World : MonoBehaviour
 
         grid.Clear();
     }
-    private void ResetGrid()
+    public void ResetGrid()
     {
         ClearGrid();
 
@@ -1125,21 +1129,15 @@ public class World : MonoBehaviour
             }
         }
     }
+    public void ResetPieces()
+    {
+        ClearPieces();
+
+        for (int i = 0; i < pieces.Count; i++)
+            DrawPiece(pieces[i]);
+    }
     public void DrawGrid(Color col, int x, int y)
     {
-        //switch(col)
-        //{
-        //    case Color.BLACK:
-        //        DrawBlackSquare(x,y);
-        //        break;
-        //    case Color.RED:
-        //        DrawRedSquare(x,y);
-        //        break;
-        //    default:
-        //        Debug.Log("Drawing Sprite was defaulted");
-        //        break;
-        //}
-
         GameObject go = Instantiate(grid_black);
 
         go.transform.SetParent(GameObject.Find("Grid").transform);
