@@ -261,64 +261,128 @@ public class World : MonoBehaviour
         {
             int score = 0;
 
-            //calculate potential targets
-            score += CalculateTargets(moves[i], UnPackPiece(pieces[moves[i].index]).level);
+            //calculate pieces around this move
+            score += CalculateAdjacent(moves[i], UnPackPiece(pieces[moves[i].index]).level);
 
-            //jump case
+            //check jump case
             if (moves[i].jumpIndex > -1)
             {
-                score += 500;
+                //try to limit aggression
+                if (whiteCount > (whiteCount / 2))
+                    score += 500;
+                else
+                    score += 200;
 
                 //if its jumping a promoted piece
                 if (UnPackPiece(pieces[moves[i].jumpIndex]).level)
                     score += 500;
             }
 
-            //add more intelligence like avoid being jumped
+            //bonus score when near promotion line
+            if (moves[i].y == 1 && UnPackPiece(pieces[moves[i].index]).level == false)
+                score += 500;
+
+            //edge case - if your on the edge and this spot can be jumped, don't because you can't trade with another piece
+            //if (moves[i].x == 0 || moves[i].x == 7)
+            //{
+            //    if (Get(moves[i].x, moves[i].y))
+            //}
 
             //add score to move data
             moveList.Add(new RankedMove(moves[i], score));
         }
         return moveList;
     }
-    private int CalculateTargets(Move move, bool level)
+    private int CalculateAdjacent(Move move, bool level)
     {
         int score = 0;
 
-        //if there is a piece around this tile (AI is always white)
-        if (Get(move.x, move.y + WHITE_FORWARD + RIGHT))
+        //check front right
+        if (Get(move.x + RIGHT, move.y + WHITE_FORWARD))
         {
-            if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + RIGHT)]).col != AIcolor)
-                score += 100;
+            if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).col != AIcolor)
+            {
+                score -= 100;
+
+                if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).level)
+                    score -= 200;
+            }
             else
                 score += 50;
         }
-        if (Get(move.x, move.y + WHITE_FORWARD + LEFT))
+        //check front left
+        if (Get(move.x + LEFT, move.y + WHITE_FORWARD))
         {
-            if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + LEFT)]).col != AIcolor)
-                score += 100;
+            if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).col != AIcolor)
+            {
+                score -= 100;
+
+                if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).level)
+                    score -= 200;
+            }
+            else
+                score += 50;
+        }
+        //check behind right
+        if (Get(move.x + RIGHT, move.y + RED_FORWARD))
+        {
+            if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).col != AIcolor)
+            {
+                score -= 100;
+
+                if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).level)
+                    score -= 200;
+            }
+            else
+                score += 50;
+        }
+        //check behind left
+        if (Get(move.x + LEFT, move.y + RED_FORWARD))
+        {
+            if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).col != AIcolor)
+            {
+                score -= 100;
+
+                if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).level)
+                    score -= 200;
+            }
             else
                 score += 50;
         }
 
-        //if the piece is promoted
-        if (level)
-        {
-            if (Get(move.x, move.y + RED_FORWARD + RIGHT))
-            {
-                if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RIGHT)]).col != AIcolor)
-                    score += 100;
-                else
-                    score += 50;
-            }
-            if (Get(move.x, move.y + RED_FORWARD + LEFT))
-            {
-                if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + LEFT)]).col != AIcolor)
-                    score += 100;
-                else
-                    score += 50;
-            }
-        }
+        //extend the search to more tiles
+        //if (Get(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + RIGHT + RIGHT))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + RIGHT + RIGHT)]).col != AIcolor)
+        //    {
+        //        Debug.Log("Found piece to avoid");
+        //        score -= 600;
+        //    }
+        //}
+        //if (Get(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + LEFT + LEFT))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + LEFT + LEFT)]).col != AIcolor)
+        //    {
+        //        Debug.Log("Found piece to avoid");
+        //        score -= 600;
+        //    }
+        //}
+        //if (Get(move.x, move.y + RED_FORWARD + RED_FORWARD + RIGHT + RIGHT))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RED_FORWARD + RIGHT + RIGHT)]).col != AIcolor)
+        //    {
+        //        Debug.Log("Found piece to avoid");
+        //        score -= 600;
+        //    }
+        //}
+        //if (Get(move.x, move.y + RED_FORWARD + RED_FORWARD + LEFT + LEFT))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RED_FORWARD + LEFT + LEFT)]).col != AIcolor)
+        //    {
+        //        Debug.Log("Found piece to avoid");
+        //        score -= 600;
+        //    }
+        //}
 
         return score;
     }
@@ -348,7 +412,10 @@ public class World : MonoBehaviour
         switch (winColor)
         {
             case CheckersColor.RED:
-                txt = "Player 2 Wins!";
+                if (AIenabled)
+                    txt = "Player Wins!";
+                else
+                    txt = "Player 2 Wins!";
                 break;
             case CheckersColor.WHITE:
                 if (AIenabled)
