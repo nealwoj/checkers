@@ -1,9 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using TMPro;
 using Unity.VisualScripting;
+using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SocialPlatforms.Impl;
 
 //piece enums
@@ -41,14 +44,36 @@ public struct CheckersPiece
     }
 }
 
-public struct MoveData
-{
-    public int x, y;
-    public int heuristic;
-}
 public struct Move
 {
-    public int x, y;
+    public int x, y, index, jumpIndex;
+
+    //multiple constructors for a jump case
+    public Move(int x, int y, int index, int jump)
+    {
+        this.x = x;
+        this.y = y;
+        this.index = index;
+        jumpIndex = jump;
+    }
+    public Move(int x, int y, int index)
+    {
+        this.x = x;
+        this.y = y;
+        this.index = index;
+        jumpIndex = -1;
+    }
+}
+public struct RankedMove
+{
+    public Move move;
+    public int score;
+
+    public RankedMove(Move move, int score)
+    {
+        this.move = move;
+        this.score = score;
+    }
 }
 
 public class World : MonoBehaviour
@@ -64,8 +89,9 @@ public class World : MonoBehaviour
     //game data
     public CheckersColor[,] board;
     public List<byte> pieces = new List<byte>(), jumpPieces = new List<byte>();
-    public List<Move> moveList = new List<Move>();
-    public CheckersColor turnColor, AIcolor;
+
+    //coloring
+    public CheckersColor turnColor, AIcolor; //by default AI is set to the WHITE team (top of screen)
     public Color mainGridColor, otherGridColor, teamOneColor, teamTwoColor;
 
     //holds information for draw functions like current grid and checkers pieces
@@ -73,7 +99,7 @@ public class World : MonoBehaviour
     
     public bool init, selected, AIenabled, playerTurn;
     public float redScore, whiteScore;
-    public int pieceIndex, gridIndex, redCount, whiteCount, pieceMoves;
+    public int pieceIndex, redCount, whiteCount, pieceMoves;
 
     //prefabs
     public GameObject grid_black, grid_red, piece_red, piece_white, piece_debug, piece_kingwhite, piece_kingred;
@@ -106,23 +132,6 @@ public class World : MonoBehaviour
 
         return piece;
     }
-    static public MoveData UnPackMove(byte b)
-    {
-        MoveData move = new MoveData();
-
-        // x 0b11100000
-        // y 0b00011100
-        // c 0b00000010
-        // l 0b00000001
-        // C# uses implicit conversion without telling us, so we cannot use the shift operator all the time
-
-        move.x = b >> 5;
-        move.y = (b & 0b00011100) >> 2;
-        //piece.col = (CheckersColor)((b & 0b00000010) >> 1);
-        //piece.level = (b % 2) == 1;
-
-        return move;
-    }
     static public byte Pack(CheckersPiece piece)
     {
         byte b = 0;
@@ -131,16 +140,6 @@ public class World : MonoBehaviour
         b |= (byte)(piece.y << 2);
         b |= (byte)((byte)(piece.col) << 1);
         b |= (byte)(piece.level ? 1 : 0);
-
-        return b;
-    }
-    static public byte Pack(MoveData move)
-    {
-        byte b = 0;
-
-        b = (byte)(move.x << 5);
-        b |= (byte)(move.y << 2);
-        b |= (byte)((byte)(move.heuristic) << 1);
 
         return b;
     }
@@ -162,68 +161,173 @@ public class World : MonoBehaviour
                 Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
                 int x = (int)(pos.x + GRID_OFFSET);
                 int y = (int)(pos.y + GRID_OFFSET);
-                //Debug.Log("Click at: (" + x + ", " + y + ")");
 
-                //mouse click is on the board
+                //mouse click is in board bounds
                 if (x > LOWER_BOUND && x < UPPER_BOUND && y > LOWER_BOUND && y < UPPER_BOUND)
                     Click(x, y);
             }
+
             //debug
             if (Input.GetKeyDown(KeyCode.Space))
                 DisplayPieces();
             if (Input.GetKeyDown(KeyCode.Escape))
                 ClearPieces();
 
-            //if AI is active and not the player's turn
+            //AI
             if (AIenabled && turnColor == AIcolor)
-            {
-                //fill move list
-                moveList.Clear();
+                GenerateAI();
 
-                for (int i = 0; i < pieces.Count; i++)
-                {
-                    if (UnPackPiece(pieces[i]).col == AIcolor)
-                    {
-                        //calculate each move heuristic and add to move list
-                        //then sort the moves based off heuristic
-                        //then pick either the first or last position for the move
-                        //finally execute move for AI and change turn
-                    }
-                }
-            }
-
+            //win state
             CheckWin();
         }
     }
 
-    private int CalculateHeuristic(int index)
+    private void Restart()
+    {
+        //world data
+        board = new CheckersColor[ROWS, COLS];
+        turnColor = CheckersColor.RED;
+
+        //grid
+        verticalOffset = (int)Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+        GenerateGrid();
+
+        whiteCount = 12;
+        whiteScore = 0;
+        redCount = 12;
+        redScore = 0;
+
+        selected = false;
+        pieceIndex = -1;
+        pieceMoves = -1;
+    }
+
+    #region AI
+    public void ActivateAI()
+    {
+        //Restart();
+
+        AIenabled = true;
+        AIcolor = CheckersColor.WHITE;
+    }
+    private void GenerateAI()
+    {
+        //go through each AI piece and get total number of moves stored in a list of move types
+        List<Move> moves = FindAIMoves();
+
+        //then check each move data (x and y) for a score based on whats in/around the tile, storing that in a list of scores (int)
+        List<RankedMove> moveList = CalculateScores(moves);
+
+        //then sort that vector based on score (smallest to larget)
+        //for (int i = 0; i < moves.Count; i++)
+        //{
+        //    moves.Sort((move1, move2)=>move1.heuristic.CompareTo(move2.heuristic));
+        //}
+        Debug.Log("before sort - index: " + moveList[0].move.index + " score: " + moveList[0].score);
+        moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
+        Debug.Log("after sort - index: " + moveList[moveList.Count - 1].move.index + " score: " + moveList[moveList.Count - 1].score);
+
+        //execute best move for AI after sorting moveList
+        MoveAI(moveList[moveList.Count - 1].move);
+    }
+    private void MoveAI(Move move)
+    {
+        //change piece x and y
+        CheckersPiece piece = UnPackPiece(pieces[move.index]);
+        piece.x = move.x;
+        piece.y = move.y;
+
+        //did the piece reach the other side, if so promote it
+        if (piece.y == 0)
+            piece.level = true;
+
+        //return piece as packed byte to list
+        pieces[move.index] = Pack(piece);
+
+        //jump case
+        if (move.jumpIndex > -1)
+            pieces.RemoveAt(move.jumpIndex);
+
+        //change turn
+        if (turnColor == CheckersColor.WHITE)
+            turnColor = CheckersColor.RED;
+        else if (turnColor == CheckersColor.RED)
+            turnColor = CheckersColor.WHITE;
+
+        //draw
+        ResetGrid();
+        Draw();
+    }
+    private List<RankedMove> CalculateScores(List<Move> moves)
+    {
+        List<RankedMove> moveList = new List<RankedMove>();
+        for (int i = 0; i < moves.Count; i++)
+        {
+            int score = 0;
+
+            //calculate potential targets
+            score += CalculateTargets(moves[i], UnPackPiece(pieces[moves[i].index]).level);
+
+            //jump case
+            if (moves[i].jumpIndex > -1)
+            {
+                score += 500;
+
+                //if its jumping a promoted piece
+                if (UnPackPiece(pieces[moves[i].jumpIndex]).level)
+                    score += 500;
+            }
+
+            //add more intelligence like avoid being jumped
+
+            //add score to move data
+            moveList.Add(new RankedMove(moves[i], score));
+        }
+        return moveList;
+    }
+    private int CalculateTargets(Move move, bool level)
     {
         int score = 0;
-        CheckersPiece piece = UnPackPiece(pieces[index]);
 
-        if (piece.level)
-            score++;
-
-        int moveCount = FindMoves(index);
-        if (moveCount > 0)
+        //if there is a piece around this tile (AI is always white)
+        if (Get(move.x, move.y + WHITE_FORWARD + RIGHT))
         {
-            score++;
+            if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + RIGHT)]).col != AIcolor)
+                score += 100;
+            else
+                score += 50;
+        }
+        if (Get(move.x, move.y + WHITE_FORWARD + LEFT))
+        {
+            if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + LEFT)]).col != AIcolor)
+                score += 100;
+            else
+                score += 50;
+        }
 
-            if (moveCount > 1)
-                score++;
-
-            //if we can jump once, add score
-            if (jumpPieces.Count > 0)
+        //if the piece is promoted
+        if (level)
+        {
+            if (Get(move.x, move.y + RED_FORWARD + RIGHT))
             {
-                score++;
-
-                if (jumpPieces.Count > 1)
-                    score++;
+                if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RIGHT)]).col != AIcolor)
+                    score += 100;
+                else
+                    score += 50;
+            }
+            if (Get(move.x, move.y + RED_FORWARD + LEFT))
+            {
+                if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + LEFT)]).col != AIcolor)
+                    score += 100;
+                else
+                    score += 50;
             }
         }
 
         return score;
     }
+    #endregion
 
     #region Debug
     private void DisplayPieces()
@@ -670,13 +774,235 @@ public class World : MonoBehaviour
 
         return count;
     }
-    public Move FindAIMoves(int index)
+    public List<Move> FindListOfMoves(int index)
     {
-        Move mv = new Move();
+        if (index < 0)
+            return null;
 
+        CheckersPiece piece = UnPackPiece(pieces[index]);
+        List<Move> moves = new List<Move>();
 
+        //forwards/backwards
+        int xRIGHT = piece.x + RIGHT;
+        int xLEFT = piece.x + LEFT;
+        int yRED = piece.y + RED_FORWARD;
+        int yWHITE = piece.y + WHITE_FORWARD;
 
-        return mv;
+        //jump case
+        int xxRIGHT = xRIGHT + RIGHT;
+        int xxLEFT = xLEFT + LEFT;
+        int yyRED = yRED + RED_FORWARD;
+        int yyWHITE = yWHITE + WHITE_FORWARD;
+
+        //determines which grid pieces should be marked as movable
+        if (piece.col == CheckersColor.RED)
+        {
+            //right check
+            if (xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND && yRED > LOWER_BOUND && yRED < UPPER_BOUND)
+            {
+                //forward right check
+                if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
+                {
+                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xRIGHT, yRED, index));
+                }
+
+                //jump case
+                if (xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND && yyRED > LOWER_BOUND && yyRED < UPPER_BOUND)
+                {
+                    //forwards right
+                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.WHITE)
+                    {
+                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
+                        moves.Add(new Move(xxRIGHT, yyRED, index, GetIndex(xRIGHT, yRED)));
+                    }
+                }
+            }
+
+            //backward right check (promotion only)
+            if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
+            {
+                if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
+                {
+                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xRIGHT, yWHITE, index));
+                }
+
+                //jump case
+                if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+                {
+                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.WHITE)
+                    {
+                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
+                        moves.Add(new Move(xxRIGHT, yyWHITE, index, GetIndex(xRIGHT, yWHITE)));
+                    }
+                }
+            }
+
+            //left check
+            if (xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND && yRED > LOWER_BOUND && yRED < UPPER_BOUND)
+            {
+                //forward left check
+                if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
+                {
+                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xLEFT, yRED, index));
+                }
+
+                //jump case
+                if (xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND && yyRED > LOWER_BOUND && yyRED < UPPER_BOUND)
+                {
+                    //forwards left
+                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.WHITE)
+                    {
+                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
+                        moves.Add(new Move(xxLEFT, yyRED, index, GetIndex(xLEFT, yRED)));
+                    }
+                }
+            }
+
+            //backward left check (promotion only)
+            if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
+            {
+                if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
+                {
+                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xLEFT, yWHITE, index));
+                }
+
+                //jump case
+                if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
+                {
+                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.WHITE)
+                    {
+                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
+                        moves.Add(new Move(xxLEFT, yyWHITE, index, GetIndex(xLEFT, yWHITE)));
+                    }
+                }
+            }
+        }
+        else if (piece.col == CheckersColor.WHITE)
+        {
+            //forward right check
+            if (xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
+            {
+                //forward right check
+                if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
+                {
+                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xRIGHT, yWHITE, index));
+                }
+
+                //jump case
+                if (xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
+                {
+                    //forwards right
+                    if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.RED)
+                    {
+                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
+                        moves.Add(new Move(xxRIGHT, yyWHITE, index, GetIndex(xRIGHT, yWHITE)));
+                    }
+                }
+            }
+
+            //backward right check (promotion only)
+            if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
+            {
+                if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
+                {
+                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xRIGHT, yRED, index));
+                }
+
+                //jump case
+                if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+                {
+                    if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
+                    {
+                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
+                        moves.Add(new Move(xxRIGHT, yyRED, index, GetIndex(xRIGHT, yRED)));
+                    }
+                }
+            }
+
+            //forward left check
+            if (xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
+            {
+                //forward left check
+                if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
+                {
+                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xLEFT, yWHITE, index));
+                }
+
+                //jump case
+                if (xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
+                {
+                    if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.RED)
+                    {
+                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
+                        moves.Add(new Move(xxLEFT, yyWHITE, index, GetIndex(xLEFT, yWHITE)));
+                    }
+                }
+            }
+
+            //backward left check (promotion only)
+            if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
+            {
+                if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
+                {
+                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    moves.Add(new Move(xLEFT, yRED, index));
+                }
+
+                //jump case
+                if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
+                {
+                    if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.RED)
+                    {
+                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                        jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
+                        moves.Add(new Move(xLEFT, yRED, index, GetIndex(xRIGHT, yRED)));
+                    }
+                }
+            }
+        }
+
+        return moves;
+    }
+    public List<Move> FindAIMoves()
+    {
+        List<Move> moves = new List<Move>();
+
+        for (int i = 0; i < pieces.Count; i++)
+        {
+            if (UnPackPiece(pieces[i]).col == AIcolor)
+            {
+                //add each pieces move to list
+                List<Move> pieceMoves = FindListOfMoves(i);
+                for (int k = 0; k < pieceMoves.Count; k++)
+                {
+                    moves.Add(pieceMoves[k]);
+                }
+            }
+        }
+
+        return moves;
     }
     #endregion
 
@@ -685,8 +1011,7 @@ public class World : MonoBehaviour
     {
         //world data
         board = new CheckersColor[ROWS, COLS];
-
-        turnColor = CheckersColor.WHITE;
+        turnColor = CheckersColor.RED;
 
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;
@@ -696,10 +1021,18 @@ public class World : MonoBehaviour
         whiteCount = 12;
         redCount = 12;
 
+        //activate AI if necessary
+        if (GameController.Instance.AIenabled)
+            ActivateAI();
+
         init = true;
     }
     public void GenerateGrid()
     {
+        ClearGrid();
+        ClearPieces();
+        pieces.Clear();
+
         //generate checkers grid
         for (int x = 0; x < ROWS; x++)
         {
