@@ -1,13 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
 using TMPro;
-using Unity.VisualScripting;
-using UnityEditor.Experimental.GraphView;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.SocialPlatforms.Impl;
 
 //piece enums
 public enum CheckersColor : byte
