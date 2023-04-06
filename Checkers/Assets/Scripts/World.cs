@@ -198,6 +198,11 @@ public class World : MonoBehaviour
         init = true;
     }
 
+    private void GenerateTree()
+    {
+
+    }
+
     #region AI
     public void ActivateAI()
     {
@@ -217,11 +222,9 @@ public class World : MonoBehaviour
         List<RankedMove> moveList = CalculateScores(moves);
 
         //then sort that vector based on score (smallest to larget)
-        //Debug.Log("before sort - index: " + moveList[0].move.index + " score: " + moveList[0].score);
         moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
-        //Debug.Log("after sort - index: " + moveList[moveList.Count - 1].move.index + " score: " + moveList[moveList.Count - 1].score);
 
-        //execute best move for AI after sorting moveList
+        //execute best move for AI
         MoveAI(moveList[moveList.Count - 1].move);
     }
     private void MoveAI(Move move)
@@ -279,7 +282,7 @@ public class World : MonoBehaviour
             }
 
             //bonus score when near promotion line
-            if (moves[i].y == 1 && UnPackPiece(pieces[moves[i].index]).level == false)
+            if (moves[i].y <= 1 && UnPackPiece(pieces[moves[i].index]).level == false)
                 score += 500;
 
             //edge case - if your on the edge and this spot can be jumped, don't because you can't trade with another piece
@@ -385,6 +388,44 @@ public class World : MonoBehaviour
         //}
 
         return score;
+    }
+    private Move SearchClosestTarget(Move move, int FORWARD)
+    {
+        //if (Get(move.x + RIGHT, move.y + FORWARD))
+        //    return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
+        //else
+        //{
+        //    if (Get(move.x + RIGHT + RIGHT, move.y + FORWARD))
+        //        return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
+        //    else
+        //    {
+        //        if (Get(move.x + RIGHT + RIGHT, move.y + FORWARD))
+        //            return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
+        //    }
+        //}
+
+        //search
+        for (int i = 0; i < move.x; i++)
+        {
+            //check diagonal up right position
+            if (Get(move.x + i, move.y + i))
+                return new Move(move.x + i, move.y + i, move.index);
+
+            //check diagonal down right position
+            if (Get(move.x + i, move.y - i))
+                return new Move(move.x + i, move.y + i, move.index);
+
+            //check diagonal up left position
+            if (Get(move.x - i, move.y + i))
+                return new Move(move.x + i, move.y + i, move.index);
+
+            //check diagonal down left position
+            if (Get(move.x - i, move.y - i))
+                return new Move(move.x + i, move.y + i, move.index);
+        }
+
+        Debug.Log("Found no targets");
+        return new Move();
     }
     #endregion
 
