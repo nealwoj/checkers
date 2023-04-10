@@ -318,8 +318,8 @@ public class World : MonoBehaviour
             }
 
             //promoted
-            if (piece.level)
-                score += 100;
+            //if (piece.level)
+            //    score += 100;
 
             //near promotion line
             if (moves[i].y < 1 && piece.level == false)
@@ -411,10 +411,10 @@ public class World : MonoBehaviour
         {
             if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).col != AIcolor)
             {
-                score -= 200;
+                score -= 100;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).level)
-                    score -= 300;
+                    score -= 200;
             }
         }
         //check front left
@@ -422,10 +422,10 @@ public class World : MonoBehaviour
         {
             if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).col != AIcolor)
             {
-                score -= 200;
+                score -= 100;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).level)
-                    score -= 300;
+                    score -= 200;
             }
         }
         //check behind right
@@ -433,28 +433,28 @@ public class World : MonoBehaviour
         {
             if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).col != AIcolor)
             {
-                score -= 200;
+                score -= 100;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).level)
-                    score -= 300;
+                    score -= 200;
             }
             else
                 if (GetIndex(move.x + RIGHT, move.y + RED_FORWARD) != move.index)
-                score += 400;
+                score += 300;
         }
         //check behind left
         if (Get(move.x + LEFT, move.y + RED_FORWARD))
         {
             if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).col != AIcolor)
             {
-                score -= 200;
+                score -= 100;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).level)
-                    score -= 300;
+                    score -= 200;
             }
             else
                 if (GetIndex(move.x + LEFT, move.y + RED_FORWARD) != move.index)
-                score += 400;
+                score += 300;
         }
 
         //extend the search to more tiles to detect targets
@@ -566,7 +566,6 @@ public class World : MonoBehaviour
         UIController.Instance.winUI.SetActive(true);
         UIController.Instance.winUI.GetComponent<TextMeshProUGUI>().text = txt;
         UIController.Instance.playAgainButton.SetActive(true);
-        UIController.Instance.mainMenuButton.SetActive(true);
 
         init = false;
     }

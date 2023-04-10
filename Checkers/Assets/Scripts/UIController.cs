@@ -32,7 +32,6 @@ public class UIController : MonoBehaviour
     void Start()
     {
         playAgainButton.SetActive(false);
-        mainMenuButton.SetActive(false);
         winUI.SetActive(false);
         colorList.SetActive(false);
         currentCustomColor = CustomColors.INVALID;
@@ -78,7 +77,6 @@ public class UIController : MonoBehaviour
     public void PlayAgain()
     {
         playAgainButton.SetActive(false);
-        mainMenuButton.SetActive(false);
         winUI.SetActive(false);
 
         World.Instance.Restart();
