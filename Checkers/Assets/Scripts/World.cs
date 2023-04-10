@@ -74,12 +74,15 @@ public struct RankedMove
 public class World : MonoBehaviour
 {
     public static World Instance { get; private set; }
-    public const int ROWS = 8, COLS = 8;
-    public const int LOWER_BOUND = -1, UPPER_BOUND = 8;
-    public const int MAX_PIECES = 12;
-    public const int RED_FORWARD = 1, WHITE_FORWARD = -1, LEFT = -1, RIGHT = 1, UP = 1, DOWN = -1;
-    public const float GRID_LAYER = 0f, PIECE_LAYER = -1f, DEBUG_LAYER = -5f;
-    public const float GRID_OFFSET = 4.5f;
+
+    //constants
+    private const int TARGET_SCALE = 50, TARGET_DEPTH = 4;
+    private const int ROWS = 8, COLS = 8;
+    private const int LOWER_BOUND = -1, UPPER_BOUND = 8;
+    private const int MAX_PIECES = 12;
+    private const int RED_FORWARD = 1, WHITE_FORWARD = -1, LEFT = -1, RIGHT = 1, UP = 1, DOWN = -1;
+    private const float GRID_LAYER = 0f, PIECE_LAYER = -1f, DEBUG_LAYER = -5f;
+    private const float GRID_OFFSET = 4.5f;
 
     //game data
     public CheckersColor[,] board;
@@ -91,7 +94,7 @@ public class World : MonoBehaviour
 
     //holds information for draw functions like current grid and checkers pieces
     public List<GameObject> objects = new List<GameObject>(), grid = new List<GameObject>();
-    
+
     public bool init, selected, AIenabled, playerTurn;
     public float redScore, whiteScore;
     public int pieceIndex, redCount, whiteCount, pieceMoves;
@@ -171,9 +174,6 @@ public class World : MonoBehaviour
             //AI
             if (AIenabled && turnColor == AIcolor)
                 GenerateAI();
-
-            //win state
-            CheckWin();
         }
     }
 
@@ -198,11 +198,6 @@ public class World : MonoBehaviour
         init = true;
     }
 
-    private void GenerateTree()
-    {
-
-    }
-
     #region AI
     public void ActivateAI()
     {
@@ -221,12 +216,37 @@ public class World : MonoBehaviour
         //then check each move data (x and y) for a score based on whats in/around the tile, storing that in a list of scores (int)
         List<RankedMove> moveList = CalculateScores(moves);
 
-        //then sort that vector based on score (smallest to larget)
+        //lambda that sorts the vectors based on score (smallest to larget)
         moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
 
-        //execute best move for AI
+        //execute best move for AI by grabbing the largest scored move at the end of the list
         MoveAI(moveList[moveList.Count - 1].move);
+
+        Debug.Log("LAST SCORE: " + moveList[moveList.Count - 1].score);
+        Debug.Log("ADJACENCY SCORE: " + CalculateAdjacent(moveList[moveList.Count - 1].move, false));
     }
+    //private RankedMove Search(List<RankedMove> tree)
+    //{
+    //    RankedMove mv = new RankedMove();
+
+    //    for (int i = 0; i < tree.Count; i++)
+    //    {
+    //        if (tree[i].score)
+    //    }
+
+    //    return mv;
+    //}
+    //private RankedMove minimax(RankedMove node, int depth, bool isMax)
+    //{
+    //    RankedMove mv = new RankedMove();
+    //    if (depth == 0)
+    //        return mv;
+
+    //    if (isMax)
+    //    {
+
+    //    }
+    //}
     private void MoveAI(Move move)
     {
         //change piece x and y
@@ -241,7 +261,7 @@ public class World : MonoBehaviour
         //return piece as packed byte to list
         pieces[move.index] = Pack(piece);
 
-        //jump case
+        //jump case - MUST HAPPEN AFTER PACKING PIECE
         if (move.jumpIndex > -1)
         {
             redCount--;
@@ -256,39 +276,89 @@ public class World : MonoBehaviour
             turnColor = CheckersColor.WHITE;
 
         Draw();
+
+        //win state
+        CheckWin();
     }
     private List<RankedMove> CalculateScores(List<Move> moves)
     {
         List<RankedMove> moveList = new List<RankedMove>();
         for (int i = 0; i < moves.Count; i++)
         {
+            CheckersPiece piece = UnPackPiece(pieces[moves[i].index]);
             int score = 0;
 
-            //calculate pieces around this move
-            score += CalculateAdjacent(moves[i], UnPackPiece(pieces[moves[i].index]).level);
+            //adjacent case
+            score += CalculateAdjacent(moves[i], piece.level);
 
-            //check jump case
+            //jump case
             if (moves[i].jumpIndex > -1)
             {
                 //try to limit aggression
-                if (whiteCount > (whiteCount / 2))
-                    score += 500;
-                else
-                    score += 200;
+                //if (whiteCount > (whiteCount / 2))
+                //    score += 500;
+                //else
+                //    score += 200;
+
+                score += 500;
 
                 //if its jumping a promoted piece
                 if (UnPackPiece(pieces[moves[i].jumpIndex]).level)
                     score += 500;
             }
+            else
+            {
+                //if there are no pieces to jump, search for targets close and add score depending on how many it detects (mainly a deterrent to promoted pieces doing the same moves over and over)
+                if (score == 0 && piece.level)
+                {
+                    //if no units were adjacent/close and not in any special position, add points for targets that are close (depth)
+                    score += SearchClosestTarget(moves[i], TARGET_DEPTH) * TARGET_SCALE;
+                    Debug.Log("Searched for targets: " + score);
+                }
+            }
 
-            //bonus score when near promotion line
-            if (moves[i].y <= 1 && UnPackPiece(pieces[moves[i].index]).level == false)
-                score += 500;
+            //promoted
+            if (piece.level)
+                score += 100;
+
+            //near promotion line
+            if (moves[i].y < 1 && piece.level == false)
+                score += 200;
 
             //edge case - if your on the edge and this spot can be jumped, don't because you can't trade with another piece
-            //if (moves[i].x == 0 || moves[i].x == 7)
+            if (piece.x == LOWER_BOUND + 1 || piece.x == UPPER_BOUND - 1)
+            {
+                Debug.Log("Edge Case detected at: " + piece.x);
+                if (Get(moves[i].x + RIGHT, moves[i].y + WHITE_FORWARD))
+                {
+                    if (UnPackPiece(pieces[GetIndex(moves[i].x + RIGHT, moves[i].y + WHITE_FORWARD)]).col != AIcolor)
+                        score -= 300;
+                }
+                if (Get(moves[i].x + LEFT, moves[i].y + WHITE_FORWARD))
+                {
+                    if (UnPackPiece(pieces[GetIndex(moves[i].x + LEFT, moves[i].y + WHITE_FORWARD)]).col != AIcolor)
+                        score -= 300;
+                }
+
+                //promotion check
+                if (Get(moves[i].x + RIGHT, moves[i].y + RED_FORWARD))
+                {
+                    if (UnPackPiece(pieces[GetIndex(moves[i].x + RIGHT, moves[i].y + RED_FORWARD)]).col != AIcolor && UnPackPiece(pieces[GetIndex(moves[i].x + RIGHT, moves[i].y + RED_FORWARD)]).level)
+                        score -= 300;
+                }
+                //promotion check
+                if (Get(moves[i].x + LEFT, moves[i].y + RED_FORWARD))
+                {
+                    if (UnPackPiece(pieces[GetIndex(moves[i].x + LEFT, moves[i].y + RED_FORWARD)]).col != AIcolor && UnPackPiece(pieces[GetIndex(moves[i].x + LEFT, moves[i].y + RED_FORWARD)]).level)
+                        score -= 300;
+                }
+            }
+
+            //about to be jumped
+            //if (GetAdjacent(moves[i]) > 0)
             //{
-            //    if (Get(moves[i].x, moves[i].y))
+            //    Debug.Log("ABOUT TO BE JUMPED");
+            //    //score += 1000;
             //}
 
             //add score to move data
@@ -296,8 +366,44 @@ public class World : MonoBehaviour
         }
         return moveList;
     }
+    private int GetAdjacent(Move move)
+    {
+        int count = 0;
+        //check front right and back left
+        if (Get(move.x + RIGHT, move.y + WHITE_FORWARD) && Get(move.x + LEFT, move.y + RED_FORWARD))
+        {
+            if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).col != AIcolor)
+                count++;
+        }
+        //check front left and back right
+        if (Get(move.x + LEFT, move.y + WHITE_FORWARD) && Get(move.x + RIGHT, move.y + RED_FORWARD))
+        {
+            if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).col != AIcolor)
+                count++;
+        }
+        //check behind right
+        //if (Get(move.x + RIGHT, move.y + RED_FORWARD))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).col != AIcolor)
+        //        count++;
+        //}
+        ////check behind left
+        //if (Get(move.x + LEFT, move.y + RED_FORWARD))
+        //{
+        //    if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).col != AIcolor)
+        //        count++;
+        //}
+        return count;
+    }
     private int CalculateAdjacent(Move move, bool level)
     {
+        //calculate adjacent pieces and what they are
+        //subtracts score if an opponent piece is adjacent to avoid being jumped
+        //adds score if there are friendly pieces behind that can trade
+
+        //subtracts 100 if there is a regular piece, then another 200 if its a promoted piece
+        //if there is a friendly piece behind this move and its not itself, then add 200 because the friendly piece can trade if this move gets jumped
+
         int score = 0;
 
         //check front right
@@ -305,127 +411,111 @@ public class World : MonoBehaviour
         {
             if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).col != AIcolor)
             {
-                score -= 100;
+                score -= 200;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + WHITE_FORWARD)]).level)
-                    score -= 200;
+                    score -= 300;
             }
-            else
-                score += 50;
         }
         //check front left
         if (Get(move.x + LEFT, move.y + WHITE_FORWARD))
         {
             if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).col != AIcolor)
             {
-                score -= 100;
+                score -= 200;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + WHITE_FORWARD)]).level)
-                    score -= 200;
+                    score -= 300;
             }
-            else
-                score += 50;
         }
         //check behind right
         if (Get(move.x + RIGHT, move.y + RED_FORWARD))
         {
             if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).col != AIcolor)
             {
-                score -= 100;
+                score -= 200;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + RIGHT, move.y + RED_FORWARD)]).level)
-                    score -= 200;
+                    score -= 300;
             }
             else
-                score += 50;
+                if (GetIndex(move.x + RIGHT, move.y + RED_FORWARD) != move.index)
+                score += 400;
         }
         //check behind left
         if (Get(move.x + LEFT, move.y + RED_FORWARD))
         {
             if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).col != AIcolor)
             {
-                score -= 100;
+                score -= 200;
 
                 if (UnPackPiece(pieces[GetIndex(move.x + LEFT, move.y + RED_FORWARD)]).level)
-                    score -= 200;
+                    score -= 300;
             }
             else
-                score += 50;
+                if (GetIndex(move.x + LEFT, move.y + RED_FORWARD) != move.index)
+                score += 400;
         }
 
-        //extend the search to more tiles
-        //if (Get(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + RIGHT + RIGHT))
+        //extend the search to more tiles to detect targets
+        //if (Get(move.x + RIGHT + RIGHT, move.y + WHITE_FORWARD + WHITE_FORWARD))
         //{
-        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + RIGHT + RIGHT)]).col != AIcolor)
+        //    if (UnPackPiece(pieces[GetIndex(move.x + RIGHT + RIGHT, move.y + WHITE_FORWARD + WHITE_FORWARD)]).col != AIcolor)
         //    {
-        //        Debug.Log("Found piece to avoid");
-        //        score -= 600;
+        //        score += 50;
         //    }
         //}
-        //if (Get(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + LEFT + LEFT))
+        //if (Get(move.x + LEFT + LEFT, move.y + WHITE_FORWARD + WHITE_FORWARD))
         //{
-        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + WHITE_FORWARD + WHITE_FORWARD + LEFT + LEFT)]).col != AIcolor)
+        //    if (UnPackPiece(pieces[GetIndex(move.x + LEFT + LEFT, move.y + WHITE_FORWARD + WHITE_FORWARD)]).col != AIcolor)
         //    {
-        //        Debug.Log("Found piece to avoid");
-        //        score -= 600;
+        //        score += 50;
         //    }
         //}
-        //if (Get(move.x, move.y + RED_FORWARD + RED_FORWARD + RIGHT + RIGHT))
+        //if (Get(move.x + RIGHT + RIGHT, move.y + RED_FORWARD + RED_FORWARD))
         //{
-        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RED_FORWARD + RIGHT + RIGHT)]).col != AIcolor)
+        //    if (UnPackPiece(pieces[GetIndex(move.x + RIGHT + RIGHT, move.y + RED_FORWARD + RED_FORWARD)]).col != AIcolor)
         //    {
-        //        Debug.Log("Found piece to avoid");
-        //        score -= 600;
+        //        score += 50;
         //    }
         //}
-        //if (Get(move.x, move.y + RED_FORWARD + RED_FORWARD + LEFT + LEFT))
+        //if (Get(move.x + LEFT + LEFT, move.y + RED_FORWARD + RED_FORWARD))
         //{
-        //    if (UnPackPiece(pieces[GetIndex(move.x, move.y + RED_FORWARD + RED_FORWARD + LEFT + LEFT)]).col != AIcolor)
+        //    if (UnPackPiece(pieces[GetIndex(move.x + LEFT + LEFT, move.y + RED_FORWARD + RED_FORWARD)]).col != AIcolor)
         //    {
-        //        Debug.Log("Found piece to avoid");
-        //        score -= 600;
+        //        score += 50;
         //    }
         //}
 
         return score;
     }
-    private Move SearchClosestTarget(Move move, int FORWARD)
+    private int SearchClosestTarget(Move move, int depth)
     {
-        //if (Get(move.x + RIGHT, move.y + FORWARD))
-        //    return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
-        //else
-        //{
-        //    if (Get(move.x + RIGHT + RIGHT, move.y + FORWARD))
-        //        return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
-        //    else
-        //    {
-        //        if (Get(move.x + RIGHT + RIGHT, move.y + FORWARD))
-        //            return new Move(move.x + RIGHT, move.y + FORWARD, move.index);
-        //    }
-        //}
-
-        //search
-        for (int i = 0; i < move.x; i++)
+        //search diagonal tiles within depth range, start at 2 because we have already checked adjacent tiles
+        int count = 0;
+        for (int i = 2; i < depth; i++)
         {
-            //check diagonal up right position
-            if (Get(move.x + i, move.y + i))
-                return new Move(move.x + i, move.y + i, move.index);
-
             //check diagonal down right position
             if (Get(move.x + i, move.y - i))
-                return new Move(move.x + i, move.y + i, move.index);
-
-            //check diagonal up left position
-            if (Get(move.x - i, move.y + i))
-                return new Move(move.x + i, move.y + i, move.index);
+                if (UnPackPiece(pieces[GetIndex(move.x + i, move.y - i)]).col != AIcolor)
+                    count++;
 
             //check diagonal down left position
             if (Get(move.x - i, move.y - i))
-                return new Move(move.x + i, move.y + i, move.index);
-        }
+                if (UnPackPiece(pieces[GetIndex(move.x - i, move.y - i)]).col != AIcolor)
+                    count++;
 
-        Debug.Log("Found no targets");
-        return new Move();
+            //check diagonal up right position
+            if (Get(move.x + i, move.y + i))
+                if (UnPackPiece(pieces[GetIndex(move.x + i, move.y + i)]).col != AIcolor && UnPackPiece(pieces[GetIndex(move.x + i, move.y + i)]).level)
+                    count++;
+
+            //check diagonal up left position
+            if (Get(move.x - i, move.y + i))
+                if (UnPackPiece(pieces[GetIndex(move.x - i, move.y + i)]).col != AIcolor && UnPackPiece(pieces[GetIndex(move.x - i, move.y + i)]).level)
+                    count++;
+        }
+        return count;
     }
     #endregion
 
@@ -464,6 +554,9 @@ public class World : MonoBehaviour
                 else
                     txt = "Player 1 Wins!";
                 break;
+            case CheckersColor.BLACK:
+                txt = "Draw!";
+                break;
             default:
                 Debug.Log("Win was defaulted!");
                 break;
@@ -474,24 +567,23 @@ public class World : MonoBehaviour
         UIController.Instance.winUI.GetComponent<TextMeshProUGUI>().text = txt;
         UIController.Instance.playAgainButton.SetActive(true);
         UIController.Instance.mainMenuButton.SetActive(true);
-        
+
         init = false;
     }
     private void CheckWin()
     {
         //check if team white has no more pieces, else if team red has no more pieces, else if the current selected piece has zero moves and it is the last piece remaining
-        if (whiteCount <= 0)
+        if (whiteCount <= 0 || CheckMoves(CheckersColor.RED) <= 0)
             Win(CheckersColor.RED);
-        else if (redCount <= 0)
+        if (redCount <= 0)
             Win(CheckersColor.WHITE);
-        else if (pieceMoves <= 0 && (whiteCount == 1 || redCount == 1))
-        {
-            CheckersColor col = UnPackPiece(pieces[pieceIndex]).col;
-            if (col == CheckersColor.WHITE)
-                Win(CheckersColor.RED);
-            else if (col == CheckersColor.RED)
-                Win(CheckersColor.WHITE);
-        }
+
+        if (CheckMoves(CheckersColor.WHITE) <= 0 && CheckMoves(CheckersColor.RED) > 0)
+            Win(CheckersColor.RED);
+        if (CheckMoves(CheckersColor.RED) <= 0 && CheckMoves(CheckersColor.WHITE) > 0)
+            Win(CheckersColor.WHITE);
+        if (CheckMoves(CheckersColor.RED) <= 0 && CheckMoves(CheckersColor.WHITE) <= 0)
+            Win(CheckersColor.BLACK);
     }
     #endregion
 
@@ -569,6 +661,9 @@ public class World : MonoBehaviour
                 turnColor = CheckersColor.WHITE;
 
             Draw();
+
+            //win state
+            CheckWin();
         }
     }
     private void CheckJump(CheckersPiece piece)
@@ -674,6 +769,18 @@ public class World : MonoBehaviour
     #endregion
 
     #region Finding Moves
+    private int CheckMoves(CheckersColor color)
+    {
+        int count = 0;
+        for (int i = 0; i < pieces.Count; i++)
+        {
+            if (UnPackPiece(pieces[i]).col == color)
+                count += FindPossibleMoves(i);
+        }
+
+        Debug.Log("POSSIBLE MOVES: " + count);
+        return count;
+    }
     public int FindMoves(int index)
     {
         if (index < 0)
@@ -882,13 +989,13 @@ public class World : MonoBehaviour
 
         return count;
     }
-    public List<Move> FindListOfMoves(int index)
+    public int FindPossibleMoves(int index)
     {
         if (index < 0)
-            return null;
+            return -1;
 
         CheckersPiece piece = UnPackPiece(pieces[index]);
-        List<Move> moves = new List<Move>();
+        int count = 0;
 
         //forwards/backwards
         int xRIGHT = piece.x + RIGHT;
@@ -911,8 +1018,7 @@ public class World : MonoBehaviour
                 //forward right check
                 if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
                 {
-                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xRIGHT, yRED, index));
+                    count++;
                 }
 
                 //jump case
@@ -921,32 +1027,24 @@ public class World : MonoBehaviour
                     //forwards right
                     if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
-                        moves.Add(new Move(xxRIGHT, yyRED, index, GetIndex(xRIGHT, yRED)));
+                        count++;
                     }
                 }
             }
 
-            //backward right check (promotion only)
+            //backward right check
             if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
             {
                 if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
                 {
-                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xRIGHT, yWHITE, index));
+                    count++;
                 }
 
-                //jump case
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
                     if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
-                        moves.Add(new Move(xxRIGHT, yyWHITE, index, GetIndex(xRIGHT, yWHITE)));
+                        count++;
                     }
                 }
             }
@@ -957,8 +1055,7 @@ public class World : MonoBehaviour
                 //forward left check
                 if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
                 {
-                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xLEFT, yRED, index));
+                    count++;
                 }
 
                 //jump case
@@ -967,32 +1064,24 @@ public class World : MonoBehaviour
                     //forwards left
                     if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
-                        moves.Add(new Move(xxLEFT, yyRED, index, GetIndex(xLEFT, yRED)));
+                        count++;
                     }
                 }
             }
 
-            //backward left check (promotion only)
+            //backward left check
             if (piece.level && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
             {
                 if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
                 {
-                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xLEFT, yWHITE, index));
+                    count++;
                 }
 
-                //jump case
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
                 {
                     if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.WHITE)
                     {
-                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
-                        moves.Add(new Move(xxLEFT, yyWHITE, index, GetIndex(xLEFT, yWHITE)));
+                        count++;
                     }
                 }
             }
@@ -1005,8 +1094,7 @@ public class World : MonoBehaviour
                 //forward right check
                 if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
                 {
-                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xRIGHT, yWHITE, index));
+                    count++;
                 }
 
                 //jump case
@@ -1015,32 +1103,24 @@ public class World : MonoBehaviour
                     //forwards right
                     if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
-                        moves.Add(new Move(xxRIGHT, yyWHITE, index, GetIndex(xRIGHT, yWHITE)));
+                        count++;
                     }
                 }
             }
 
-            //backward right check (promotion only)
+            //backward right check
             if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
             {
                 if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
                 {
-                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xRIGHT, yRED, index));
+                    count++;
                 }
 
-                //jump case
                 if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
                     if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
-                        moves.Add(new Move(xxRIGHT, yyRED, index, GetIndex(xRIGHT, yRED)));
+                        count++;
                     }
                 }
             }
@@ -1051,8 +1131,7 @@ public class World : MonoBehaviour
                 //forward left check
                 if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
                 {
-                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xLEFT, yWHITE, index));
+                    count++;
                 }
 
                 //jump case
@@ -1060,21 +1139,17 @@ public class World : MonoBehaviour
                 {
                     if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
-                        moves.Add(new Move(xxLEFT, yyWHITE, index, GetIndex(xLEFT, yWHITE)));
+                        count++;
                     }
                 }
             }
 
-            //backward left check (promotion only)
+            //backward left check
             if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
             {
                 if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
                 {
-                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                    moves.Add(new Move(xLEFT, yRED, index));
+                    count++;
                 }
 
                 //jump case
@@ -1082,11 +1157,121 @@ public class World : MonoBehaviour
                 {
                     if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.RED)
                     {
-                        GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
-                        GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
-                        jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
-                        moves.Add(new Move(xLEFT, yRED, index, GetIndex(xRIGHT, yRED)));
+                        count++;
                     }
+                }
+            }
+        }
+
+        return count;
+    }
+    public List<Move> FindListOfMoves(int index)
+    {
+        if (index < 0)
+            return null;
+
+        CheckersPiece piece = UnPackPiece(pieces[index]);
+        List<Move> moves = new List<Move>();
+
+        //forwards/backwards
+        int xRIGHT = piece.x + RIGHT;
+        int xLEFT = piece.x + LEFT;
+        int yRED = piece.y + RED_FORWARD;
+        int yWHITE = piece.y + WHITE_FORWARD;
+
+        //jump case
+        int xxRIGHT = xRIGHT + RIGHT;
+        int xxLEFT = xLEFT + LEFT;
+        int yyRED = yRED + RED_FORWARD;
+        int yyWHITE = yWHITE + WHITE_FORWARD;
+
+        //forward right check
+        if (xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
+        {
+            //forward right check
+            if (board[xRIGHT, yWHITE] == CheckersColor.BLACK && Get(xRIGHT, yWHITE) == false)
+            {
+                GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                moves.Add(new Move(xRIGHT, yWHITE, index));
+            }
+
+            //jump case
+            if (xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
+            {
+                //forwards right
+                if (Get(xRIGHT, yWHITE) && Get(xxRIGHT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yWHITE)]).col == CheckersColor.RED)
+                {
+                    GetGrid(xRIGHT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                    GetGrid(xxRIGHT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    jumpPieces.Add(pieces[GetIndex(xRIGHT, yWHITE)]);
+                    moves.Add(new Move(xxRIGHT, yyWHITE, index, GetIndex(xRIGHT, yWHITE)));
+                }
+            }
+        }
+
+        //backward right check (promotion only)
+        if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xRIGHT > LOWER_BOUND && xRIGHT < UPPER_BOUND)
+        {
+            if (board[xRIGHT, yRED] == CheckersColor.BLACK && Get(xRIGHT, yRED) == false)
+            {
+                GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                moves.Add(new Move(xRIGHT, yRED, index));
+            }
+
+            //jump case
+            if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+            {
+                if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
+                {
+                    GetGrid(xRIGHT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                    GetGrid(xxRIGHT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    jumpPieces.Add(pieces[GetIndex(xRIGHT, yRED)]);
+                    moves.Add(new Move(xxRIGHT, yyRED, index, GetIndex(xRIGHT, yRED)));
+                }
+            }
+        }
+
+        //forward left check
+        if (xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND && yWHITE > LOWER_BOUND && yWHITE < UPPER_BOUND)
+        {
+            //forward left check
+            if (board[xLEFT, yWHITE] == CheckersColor.BLACK && Get(xLEFT, yWHITE) == false)
+            {
+                GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                moves.Add(new Move(xLEFT, yWHITE, index));
+            }
+
+            //jump case
+            if (xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND && yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND)
+            {
+                if (Get(xLEFT, yWHITE) && Get(xxLEFT, yyWHITE) == false && UnPackPiece(pieces[GetIndex(xLEFT, yWHITE)]).col == CheckersColor.RED)
+                {
+                    GetGrid(xLEFT, yWHITE).GetComponent<SpriteRenderer>().color = Color.green;
+                    GetGrid(xxLEFT, yyWHITE).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    jumpPieces.Add(pieces[GetIndex(xLEFT, yWHITE)]);
+                    moves.Add(new Move(xxLEFT, yyWHITE, index, GetIndex(xLEFT, yWHITE)));
+                }
+            }
+        }
+
+        //backward left check (promotion only)
+        if (piece.level && yRED > LOWER_BOUND && yRED < UPPER_BOUND && xLEFT > LOWER_BOUND && xLEFT < UPPER_BOUND)
+        {
+            if (board[xLEFT, yRED] == CheckersColor.BLACK && Get(xLEFT, yRED) == false)
+            {
+                GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                moves.Add(new Move(xLEFT, yRED, index));
+            }
+
+            //jump case
+            if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxLEFT > LOWER_BOUND && xxLEFT < UPPER_BOUND)
+            {
+                if (Get(xLEFT, yRED) && Get(xxLEFT, yyRED) == false && UnPackPiece(pieces[GetIndex(xLEFT, yRED)]).col == CheckersColor.RED)
+                {
+                    GetGrid(xLEFT, yRED).GetComponent<SpriteRenderer>().color = Color.green;
+                    GetGrid(xxLEFT, yyRED).GetComponent<SpriteRenderer>().color = Color.yellow;
+                    jumpPieces.Add(pieces[GetIndex(xLEFT, yRED)]);
+                    moves.Add(new Move(xxLEFT, yyRED, index, GetIndex(xLEFT, yRED)));
                 }
             }
         }
@@ -1096,7 +1281,6 @@ public class World : MonoBehaviour
     public List<Move> FindAIMoves()
     {
         List<Move> moves = new List<Move>();
-
         for (int i = 0; i < pieces.Count; i++)
         {
             if (UnPackPiece(pieces[i]).col == AIcolor)
@@ -1109,7 +1293,6 @@ public class World : MonoBehaviour
                 }
             }
         }
-
         return moves;
     }
     #endregion
