@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 
 public class StartController : MonoBehaviour
 {
-    public GameObject grid;
+    public GameObject grid, easyButton, hardButton, localButton, aiButton, backButton;
 
     // Start is called before the first frame update
     void Start()
@@ -26,6 +26,12 @@ public class StartController : MonoBehaviour
                     go.GetComponent<SpriteRenderer>().color = Color.black;
             }
         }
+
+        easyButton.SetActive(false);
+        hardButton.SetActive(false);
+        backButton.SetActive(false);
+        localButton.SetActive(true);
+        aiButton.SetActive(true);
     }
 
     // Update is called once per frame
@@ -40,9 +46,31 @@ public class StartController : MonoBehaviour
         GameController.Instance.AIenabled = false;
         SceneManager.LoadScene(scene);
     }
-    public void AIButton(string scene)
+    public void AIButton()
     {
         GameController.Instance.AIenabled = true;
+        easyButton.SetActive(true);
+        hardButton.SetActive(true);
+        backButton.SetActive(true);
+        localButton.SetActive(false);
+        aiButton.SetActive(false);
+    }
+    public void EasyButton(string scene)
+    {
+        GameController.Instance.difficulty = Difficulty.EASY;
         SceneManager.LoadScene(scene);
+    }
+    public void HardButton(string scene)
+    {
+        GameController.Instance.difficulty = Difficulty.HARD;
+        SceneManager.LoadScene(scene);
+    }
+    public void BackButton()
+    {
+        easyButton.SetActive(false);
+        hardButton.SetActive(false);
+        backButton.SetActive(false);
+        localButton.SetActive(true);
+        aiButton.SetActive(true);
     }
 }

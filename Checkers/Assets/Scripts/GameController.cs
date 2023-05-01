@@ -6,6 +6,7 @@ public class GameController : MonoBehaviour
 {
     public static GameController Instance { get; private set; }
     public bool AIenabled;
+    public Difficulty difficulty;
 
     private void Awake()
     {

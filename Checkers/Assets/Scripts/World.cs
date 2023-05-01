@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 
 //piece enums
@@ -58,6 +59,10 @@ public struct Move
         this.index = index;
         jumpIndex = -1;
     }
+
+    //operator overload lambdas
+    public static bool operator==(Move first, Move second) => first.x == second.x && first.y == second.y;
+    public static bool operator!=(Move first, Move second) => first.x != second.x && first.y != second.y;
 }
 public struct RankedMove
 {
@@ -69,6 +74,13 @@ public struct RankedMove
         this.move = move;
         this.score = score;
     }
+}
+
+public enum Difficulty
+{
+    INVALID = -1,
+    EASY,
+    HARD
 }
 
 public class World : MonoBehaviour
@@ -87,6 +99,8 @@ public class World : MonoBehaviour
     //game data
     public CheckersColor[,] board;
     public List<byte> pieces = new List<byte>(), jumpPieces = new List<byte>();
+    public Difficulty AIdiff = Difficulty.EASY;
+    public Move lastMove;
 
     //coloring
     public CheckersColor turnColor, AIcolor; //by default AI is set to the WHITE team (top of screen)
@@ -216,37 +230,104 @@ public class World : MonoBehaviour
         //then check each move data (x and y) for a score based on whats in/around the tile, storing that in a list of scores (int)
         List<RankedMove> moveList = CalculateScores(moves);
 
-        //lambda that sorts the vectors based on score (smallest to larget)
-        moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
+        //EASY: moveAI using minimax search to get random moves
+        //HARD: sort moves by heuristic score from smallest to largest and then select the last element in moveList which has the highest score
+        if (AIdiff == Difficulty.HARD)
+        {
+            //lambda that sorts the vectors based on score (smallest to larget)
+            moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
 
-        //execute best move for AI by grabbing the largest scored move at the end of the list
-        MoveAI(moveList[moveList.Count - 1].move);
-
-        Debug.Log("LAST SCORE: " + moveList[moveList.Count - 1].score);
-        Debug.Log("ADJACENCY SCORE: " + CalculateAdjacent(moveList[moveList.Count - 1].move, false));
+            //execute best move for AI by grabbing the largest scored move at the end of the list
+            MoveAI(moveList[moveList.Count - 1].move);
+        }
+        else
+            MoveAI(SearchTree(moveList).move);
     }
-    //private RankedMove Search(List<RankedMove> tree)
-    //{
-    //    RankedMove mv = new RankedMove();
+    private RankedMove SearchTree(List<RankedMove> tree)
+    {
+        List<RankedMove> newTree = tree;
+        Debug.Log("NEW TREE COUNT: " + newTree.Count);
 
-    //    for (int i = 0; i < tree.Count; i++)
-    //    {
-    //        if (tree[i].score)
-    //    }
+        bool run = true;
+        while (run)
+        {
+            newTree = Search(newTree);
+            Debug.Log("NEW TREE COUNT: " + newTree.Count);
 
-    //    return mv;
-    //}
-    //private RankedMove minimax(RankedMove node, int depth, bool isMax)
-    //{
-    //    RankedMove mv = new RankedMove();
-    //    if (depth == 0)
-    //        return mv;
+            if (newTree.Count < 2)
+                run = false;
+        }
 
-    //    if (isMax)
-    //    {
+        Debug.Log("NEW TREE FINAL COUNT: " + newTree.Count);
+        return newTree[0];
+    }
+    private List<RankedMove> Search(List<RankedMove> tree)
+    {
+        List<RankedMove> newTree = new List<RankedMove>();
+        bool max = false;
 
-    //    }
-    //}
+        //if we have an odd number, truncate to even and add move at end later
+        RankedMove mv = new RankedMove();
+        bool odd = false;
+        if (tree.Count % 2 != 0)
+        {
+            Debug.Log("ODD!");
+            odd = true;
+            mv = tree[0];
+            tree.RemoveAt(0);
+        }
+
+        for (int i = 0; i < tree.Count / 2; i++)
+        {
+            max = !max;
+            newTree.Add(minimax(tree, i, max));
+        }
+
+        if (odd)
+            newTree.Add(mv);
+
+        return newTree;
+    }
+    private RankedMove minimax(List<RankedMove> tree, int depth, bool isMax)
+    {
+        //RankedMove mv = new RankedMove();
+        //if (depth == 0)
+        //    return mv;
+
+        int adjacent = depth + 1;
+
+        //if we need to find max, return move with highest score, if they are equal then choose a random move between the two
+        if (isMax)
+        {
+            if (tree[depth].score > tree[adjacent].score)
+                return tree[depth];
+            else if (tree[depth].score < tree[adjacent].score)
+                return tree[adjacent];
+            else
+            {
+                int rand = UnityEngine.Random.Range(1, 2);
+                if (rand == 1)
+                    return tree[depth];
+                else
+                    return tree[adjacent];
+            }
+        }
+        else
+        {
+            if (tree[depth].score < tree[adjacent].score)
+                return tree[depth];
+            else if (tree[depth].score > tree[adjacent].score)
+                return tree[adjacent];
+            else
+            {
+                int rand = UnityEngine.Random.Range(1, 2);
+                if (rand == 1)
+                    return tree[depth];
+                else
+                    return tree[adjacent];
+            }
+        }
+    }
     private void MoveAI(Move move)
     {
         //change piece x and y
@@ -275,9 +356,8 @@ public class World : MonoBehaviour
         else if (turnColor == CheckersColor.RED)
             turnColor = CheckersColor.WHITE;
 
+        lastMove = move;
         Draw();
-
-        //win state
         CheckWin();
     }
     private List<RankedMove> CalculateScores(List<Move> moves)
@@ -317,7 +397,6 @@ public class World : MonoBehaviour
                 {
                     //if no units were adjacent/close and not in any special position, add points for targets that are close (depth)
                     score += SearchClosestTarget(moves[i], TARGET_DEPTH) * TARGET_SCALE;
-                    Debug.Log("Searched for targets: " + score);
                 }
             }
 
@@ -332,7 +411,6 @@ public class World : MonoBehaviour
             //edge case - if your on the edge and this spot can be jumped, don't because you can't trade with another piece
             if (piece.x == LOWER_BOUND + 1 || piece.x == UPPER_BOUND - 1)
             {
-                Debug.Log("Edge Case detected at: " + piece.x);
                 if (Get(moves[i].x + RIGHT, moves[i].y + WHITE_FORWARD))
                 {
                     if (UnPackPiece(pieces[GetIndex(moves[i].x + RIGHT, moves[i].y + WHITE_FORWARD)]).col != AIcolor)
@@ -780,8 +858,6 @@ public class World : MonoBehaviour
             if (UnPackPiece(pieces[i]).col == color)
                 count += FindPossibleMoves(i);
         }
-
-        Debug.Log("POSSIBLE MOVES: " + count);
         return count;
     }
     public int FindMoves(int index)
@@ -1294,7 +1370,8 @@ public class World : MonoBehaviour
                 List<Move> pieceMoves = FindListOfMoves(i);
                 for (int k = 0; k < pieceMoves.Count; k++)
                 {
-                    moves.Add(pieceMoves[k]);
+                    if (pieceMoves[k] != lastMove)
+                        moves.Add(pieceMoves[k]);
                 }
             }
         }
@@ -1308,6 +1385,8 @@ public class World : MonoBehaviour
         //world data
         board = new CheckersColor[ROWS, COLS];
         turnColor = CheckersColor.RED;
+
+        AIdiff = GameController.Instance.difficulty;
 
         //grid
         verticalOffset = (int)Camera.main.orthographicSize;
