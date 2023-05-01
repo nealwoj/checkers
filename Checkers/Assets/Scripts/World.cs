@@ -302,6 +302,10 @@ public class World : MonoBehaviour
 
                 score += 500;
 
+                //edge case - give bonus points since the piece cant be jumped if it moves
+                if (moves[i].x == 0 || moves[i].x == 7)
+                    score += 500;
+
                 //if its jumping a promoted piece
                 if (UnPackPiece(pieces[moves[i].jumpIndex]).level)
                     score += 500;
@@ -440,7 +444,7 @@ public class World : MonoBehaviour
             }
             else
                 if (GetIndex(move.x + RIGHT, move.y + RED_FORWARD) != move.index)
-                score += 300;
+                    score += 300;
         }
         //check behind left
         if (Get(move.x + LEFT, move.y + RED_FORWARD))
@@ -454,7 +458,7 @@ public class World : MonoBehaviour
             }
             else
                 if (GetIndex(move.x + LEFT, move.y + RED_FORWARD) != move.index)
-                score += 300;
+                    score += 300;
         }
 
         //extend the search to more tiles to detect targets
@@ -928,7 +932,7 @@ public class World : MonoBehaviour
                     count++;
                 }
 
-                if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+                if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
                     if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
                     {
@@ -1164,6 +1168,7 @@ public class World : MonoBehaviour
 
         return count;
     }
+    //finds possible moves for AI
     public List<Move> FindListOfMoves(int index)
     {
         if (index < 0)
@@ -1277,6 +1282,7 @@ public class World : MonoBehaviour
 
         return moves;
     }
+    //shell for FindListOfMoves
     public List<Move> FindAIMoves()
     {
         List<Move> moves = new List<Move>();
