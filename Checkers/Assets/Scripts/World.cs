@@ -76,13 +76,6 @@ public struct RankedMove
     }
 }
 
-public enum Difficulty
-{
-    INVALID = -1,
-    EASY,
-    HARD
-}
-
 public class World : MonoBehaviour
 {
     public static World Instance { get; private set; }
@@ -232,7 +225,7 @@ public class World : MonoBehaviour
 
         //EASY: moveAI using minimax search to get random moves
         //HARD: sort moves by heuristic score from smallest to largest and then select the last element in moveList which has the highest score
-        if (AIdiff == Difficulty.HARD)
+        if (AIdiff == Difficulty.MEDIUM)
         {
             //lambda that sorts the vectors based on score (smallest to larget)
             moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
@@ -240,7 +233,7 @@ public class World : MonoBehaviour
             //execute best move for AI by grabbing the largest scored move at the end of the list
             MoveAI(moveList[moveList.Count - 1].move);
         }
-        else
+        else if (AIdiff == Difficulty.EASY)
             MoveAI(SearchTree(moveList).move);
     }
     private RankedMove SearchTree(List<RankedMove> tree)
@@ -330,8 +323,13 @@ public class World : MonoBehaviour
     }
     private void MoveAI(Move move)
     {
-        //change piece x and y
         CheckersPiece piece = UnPackPiece(pieces[move.index]);
+
+        //lastMove
+        lastMove = new Move(piece.x, piece.y, GetIndex(piece.x, piece.y), -1);
+        Debug.Log("lastMove - (" + lastMove.x + ", " + lastMove.y + ")");
+
+        //change piece x and y
         piece.x = move.x;
         piece.y = move.y;
 
@@ -355,8 +353,7 @@ public class World : MonoBehaviour
             turnColor = CheckersColor.RED;
         else if (turnColor == CheckersColor.RED)
             turnColor = CheckersColor.WHITE;
-
-        lastMove = move;
+        
         Draw();
         CheckWin();
     }
@@ -393,11 +390,11 @@ public class World : MonoBehaviour
             else
             {
                 //if there are no pieces to jump, search for targets close and add score depending on how many it detects (mainly a deterrent to promoted pieces doing the same moves over and over)
-                if (score == 0 && piece.level)
-                {
-                    //if no units were adjacent/close and not in any special position, add points for targets that are close (depth)
-                    score += SearchClosestTarget(moves[i], TARGET_DEPTH) * TARGET_SCALE;
-                }
+                //if (score == 0 && piece.level)
+                //{
+                //    //if no units were adjacent/close and not in any special position, add points for targets that are close (depth)
+                //    score += SearchClosestTarget(moves[i], TARGET_DEPTH) * TARGET_SCALE;
+                //}
             }
 
             //promoted
@@ -1370,8 +1367,11 @@ public class World : MonoBehaviour
                 List<Move> pieceMoves = FindListOfMoves(i);
                 for (int k = 0; k < pieceMoves.Count; k++)
                 {
+                    //moves.Add(pieceMoves[k]);
                     if (pieceMoves[k] != lastMove)
                         moves.Add(pieceMoves[k]);
+                    else
+                        Debug.Log("WAS LAST MOVE! - (" + lastMove.x + ", " + lastMove.y + ")");
                 }
             }
         }

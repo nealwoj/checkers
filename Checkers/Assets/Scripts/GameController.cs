@@ -2,6 +2,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum Difficulty
+{
+    INVALID = -1,
+    EASY,
+    MEDIUM,
+    HARD
+}
+
 public class GameController : MonoBehaviour
 {
     public static GameController Instance { get; private set; }
