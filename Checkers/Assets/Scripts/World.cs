@@ -215,6 +215,8 @@ public class World : MonoBehaviour
     }
     private void GenerateAI()
     {
+        CheckWin();
+
         //go through each AI piece and get total number of moves stored in a list of move types
         List<Move> moves = FindAIMoves();
         if (moves.Count <= 0)
@@ -648,6 +650,7 @@ public class World : MonoBehaviour
 
         init = false;
     }
+    //shell for Win()
     private void CheckWin()
     {
         //check if team white has no more pieces, else if team red has no more pieces, else if the current selected piece has zero moves and it is the last piece remaining
@@ -1192,7 +1195,7 @@ public class World : MonoBehaviour
                     count++;
                 }
 
-                if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+                if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
                 {
                     if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
                     {
@@ -1296,7 +1299,7 @@ public class World : MonoBehaviour
             }
 
             //jump case
-            if (yyWHITE > LOWER_BOUND && yyWHITE < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
+            if (yyRED > LOWER_BOUND && yyRED < UPPER_BOUND && xxRIGHT > LOWER_BOUND && xxRIGHT < UPPER_BOUND)
             {
                 if (Get(xRIGHT, yRED) && Get(xxRIGHT, yyRED) == false && UnPackPiece(pieces[GetIndex(xRIGHT, yRED)]).col == CheckersColor.RED)
                 {
@@ -1368,10 +1371,12 @@ public class World : MonoBehaviour
                 for (int k = 0; k < pieceMoves.Count; k++)
                 {
                     //moves.Add(pieceMoves[k]);
-                    if (pieceMoves[k] != lastMove)
+                    //if (pieceMoves[k] != lastMove)
+                    //    if (whiteCount == 1 || pieceMoves.Count == 1)
+                    //        moves.Add(pieceMoves[k]);
+
+                    if (pieceMoves[k] != lastMove || pieceMoves.Count == 1)
                         moves.Add(pieceMoves[k]);
-                    else
-                        Debug.Log("WAS LAST MOVE! - (" + lastMove.x + ", " + lastMove.y + ")");
                 }
             }
         }
