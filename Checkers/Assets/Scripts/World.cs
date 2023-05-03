@@ -173,10 +173,10 @@ public class World : MonoBehaviour
             }
 
             //debug
-            if (Input.GetKeyDown(KeyCode.Space))
-                DisplayPieces();
-            if (Input.GetKeyDown(KeyCode.Escape))
-                ClearPieces();
+            //if (Input.GetKeyDown(KeyCode.Space))
+            //    DisplayPieces();
+            //if (Input.GetKeyDown(KeyCode.Escape))
+            //    ClearPieces();
 
             //AI
             if (AIenabled && turnColor == AIcolor)
@@ -220,7 +220,8 @@ public class World : MonoBehaviour
         //go through each AI piece and get total number of moves stored in a list of move types
         List<Move> moves = FindAIMoves();
         if (moves.Count <= 0)
-            return;
+            Debug.Log("MOVES WAS 0");
+            //Win(CheckersColor.RED);
 
         //then check each move data (x and y) for a score based on whats in/around the tile, storing that in a list of scores (int)
         List<RankedMove> moveList = CalculateScores(moves);
@@ -233,7 +234,8 @@ public class World : MonoBehaviour
             moveList.Sort((move1, move2) => move1.score.CompareTo(move2.score));
 
             //execute best move for AI by grabbing the largest scored move at the end of the list
-            MoveAI(moveList[moveList.Count - 1].move);
+            if (moveList.Count != 0)
+                MoveAI(moveList[moveList.Count - 1].move);
         }
         else if (AIdiff == Difficulty.EASY)
             MoveAI(SearchTree(moveList).move);
@@ -654,7 +656,7 @@ public class World : MonoBehaviour
     private void CheckWin()
     {
         //check if team white has no more pieces, else if team red has no more pieces, else if the current selected piece has zero moves and it is the last piece remaining
-        if (whiteCount <= 0 || CheckMoves(CheckersColor.RED) <= 0)
+        if (whiteCount <= 0)
             Win(CheckersColor.RED);
         if (redCount <= 0)
             Win(CheckersColor.WHITE);
@@ -702,7 +704,6 @@ public class World : MonoBehaviour
 
             grid[gridIndex].gameObject.GetComponent<SpriteRenderer>().color = Color.yellow;
             pieceMoves = FindMoves(this.pieceIndex);
-
             selected = true;
         }
     }
@@ -735,16 +736,17 @@ public class World : MonoBehaviour
             //jump case - todo: optimize to avoid if there is no jump
             CheckJump(piece);
 
+            //draw
+            Draw();
+
+            //win state
+            CheckWin();
+
             //change turn
             if (turnColor == CheckersColor.WHITE)
                 turnColor = CheckersColor.RED;
             else if (turnColor == CheckersColor.RED)
                 turnColor = CheckersColor.WHITE;
-
-            Draw();
-
-            //win state
-            CheckWin();
         }
     }
     private void CheckJump(CheckersPiece piece)
@@ -1362,6 +1364,8 @@ public class World : MonoBehaviour
     public List<Move> FindAIMoves()
     {
         List<Move> moves = new List<Move>();
+        int AImoves = 0;
+
         for (int i = 0; i < pieces.Count; i++)
         {
             if (UnPackPiece(pieces[i]).col == AIcolor)
@@ -1375,8 +1379,11 @@ public class World : MonoBehaviour
                     //    if (whiteCount == 1 || pieceMoves.Count == 1)
                     //        moves.Add(pieceMoves[k]);
 
-                    if (pieceMoves[k] != lastMove || pieceMoves.Count == 1)
+                    if (pieceMoves[k] != lastMove || AImoves == 0)
+                    {
+                        AImoves++;
                         moves.Add(pieceMoves[k]);
+                    }
                 }
             }
         }
